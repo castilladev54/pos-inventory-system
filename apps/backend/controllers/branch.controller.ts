@@ -28,7 +28,7 @@ const handleServiceError = (error: unknown, res: Response): void => {
 
 /**
  * GET /api/branches
- * Devuelve todas las sucursales activas del negocio autenticado.
+ * Devuelve todas las sucursales activas del negocio autenticado. 
  */
 export const getBranches = async (req: Request, res: Response): Promise<void> => {
   try {
