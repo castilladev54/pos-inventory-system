@@ -1,0 +1,46 @@
+services:
+  # ─── MongoDB ──────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: inventory-mongo
+    restart: unless-stopped
+    # Use environment vars, or fail if not provided (no insecure defaults)
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:?error}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?error}
+      MONGO_INITDB_DATABASE: inventarioCrud
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ─── Backend API ──────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inventory-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      # Use the user-defined variables for connection
+      MONGO_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/inventarioCrud?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:?error}
+      MAILTRAP_TOKEN: ${MAILTRAP_TOKEN:?error}
+      MAILTRAP_ENDPOINT: ${MAILTRAP_ENDPOINT:-https://send.api.mailtrap.io}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:5173}
+      ADMIN_REGISTRATION_KEY: ${ADMIN_REGISTRATION_KEY:?error}
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo_data:
+    driver: local

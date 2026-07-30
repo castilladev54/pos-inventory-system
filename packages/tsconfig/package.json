@@ -1,0 +1,10 @@
+{
+  "name": "@inventory/tsconfig",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    "./base.json": "./base.json",
+    "./node.json": "./node.json",
+    "./react.json": "./react.json"
+  }
+}

@@ -1,0 +1,153 @@
+name: CI — Test & Docker Build
+
+on:
+  push:
+    branches: [main, "feat/**", "feature/**", "fix/**"]
+  pull_request:
+    branches: [main]
+
+# Evitar correr dos pipelines en paralelo para la misma rama
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # 🧪 JOB 1: Vitest — Tests de integración + unitarios de servicios
+  # ─────────────────────────────────────────────────────────────
+  test:
+    name: 🧪 Vitest — Integration & Service Unit Tests
+    runs-on: ubuntu-latest
+    # MongoMemoryReplSet puede tardar bastante en CI. 15 min es suficiente.
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: 🗂️ Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
+      - name: 📦 Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: 🧪 Ejecutar tests (Vitest)
+        run: pnpm --filter @inventory/backend test
+        env:
+          NODE_ENV: test
+          # JWT necesario para que verifyToken no falle al arrancar el servidor
+          JWT_SECRET: test_jwt_secret_for_ci_only_not_production
+
+          # Redis mockeado en todos los tests — estas variables son dummies
+          # para que el módulo lib/redis.js no crashee al importarse.
+          # Los vi.mock() en cada test reemplazan las llamadas reales.
+          UPSTASH_REDIS_REST_URL: https://dummy-redis.upstash.io
+          UPSTASH_REDIS_REST_TOKEN: dummy_token_for_ci
+
+          # MONGO_URI no se usa en tests (se usa mongodb-memory-server)
+          # pero se inyecta como string vacío para evitar errores de módulo
+          MONGO_URI: mongodb://localhost:27017/test_placeholder
+
+          # Opciones de MongoDB Memory Server para estabilidad en CI
+          MONGOMS_INSTANCE_STARTUP_TIMEOUT: "90000"
+          MONGOMS_DOWNLOAD_DIR: /tmp/mongo-memory-server
+
+      # Publicar resumen en el PR si falla algún test
+      - name: 📊 Resumen de Tests
+        if: always()
+        run: |
+          echo "## 🧪 Resultado de Tests" >> $GITHUB_STEP_SUMMARY
+          echo "Node: $(node --version)" >> $GITHUB_STEP_SUMMARY
+          echo "PNPM:  $(pnpm --version)" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────
+  # 🐳 JOB 2: Docker Build — Valida que el Dockerfile nunca rompa
+  # Depende de que los tests pasen primero (needs: test)
+  # ─────────────────────────────────────────────────────────────
+  docker:
+    name: 🐳 Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Cache de capas Docker entre runs para acelerar el build
+      - name: 🗂️ Cache de capas Docker
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: docker-buildx-${{ github.sha }}
+          restore-keys: |
+            docker-buildx-
+
+      - name: 🔍 Verificar si hay secretos de Docker Hub
+        id: check_secrets
+        run: |
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ] && [ -n "${{ secrets.DOCKER_TOKEN }}" ]; then
+            echo "can_push=true" >> $GITHUB_OUTPUT
+          else
+            echo "can_push=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Secretos de Docker Hub no encontrados. Solo se hará build local de validación."
+          fi
+
+      - name: 🔐 Login a Docker Hub
+        # Solo se loguea si estamos en main (push directo) y tenemos los secretos
+        if: |
+          github.ref == 'refs/heads/main' &&
+          github.event_name == 'push' &&
+          steps.check_secrets.outputs.can_push == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: 🏗️ Build (+ Push si está en main con secretos)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          # push=true SOLO cuando: rama=main + evento=push + secretos presentes
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.check_secrets.outputs.can_push == 'true' }}
+          tags: |
+            ${{ secrets.DOCKER_USERNAME || 'local' }}/backend-inventory:latest
+            ${{ secrets.DOCKER_USERNAME || 'local' }}/backend-inventory:${{ github.sha }}
+          # GitHub Actions Cache para capas (mucho más rápido que sin caché)
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # No necesita build-args secretos porque el Dockerfile no los usa
+
+      # Rotación del caché de Docker (evita que crezca sin límite)
+      - name: ♻️ Rotar caché de Docker
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+        if: always()
+
+      - name: 📊 Resumen del Build
+        if: always()
+        run: |
+          echo "## 🐳 Docker Build" >> $GITHUB_STEP_SUMMARY
+          echo "- **SHA:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Push activado:** ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.check_secrets.outputs.can_push == 'true' }}" >> $GITHUB_STEP_SUMMARY
