@@ -1,4 +1,4 @@
-import { User } from "../models/User.js";
+import { User, type IUser } from "../models/User.js";
 import { Category } from "../models/Category.js";
 import { Product } from "../models/Product.js";
 import { Purchase } from "../models/Purchase.js";
@@ -7,6 +7,7 @@ import { Sale } from "../models/Sale.js";
 import { SaleDetail } from "../models/SaleDetail.js";
 import mongoose from "mongoose";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 // bcryptjs ships its own types inside the package; no @types needed
 import bcryptjs from "bcryptjs";
 import type { Request, Response } from "express";
@@ -15,6 +16,10 @@ import { RefreshToken } from "../models/RefreshToken.js";
 import { randomUUID } from "crypto";
 import { sendPasswordResetEmail, sendResetSuccessEmail } from "../mailtrap/emails.js";
 import { bumpCacheVersion, redis } from "../lib/redis.js";
+
+// ─── CONSTANTES DE SEGURIDAD ────────────────────────────────────────────────
+const GRACE_PERIOD_MS = 15_000; // 15 segundos de tolerancia para reintentos legítimos
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
 
 export const createUser = async (req: Request, res: Response): Promise<void> => {
   const { email, password, name, role } = req.body as {
@@ -153,67 +158,203 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 };
 
 export const refreshToken = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const currentToken = req.cookies?.refreshToken;
-    if (!currentToken) {
-      res.status(401).json({ success: false, message: "No refresh token provided" });
-      return;
-    }
+  // ──────────────────────────────────────────────────────────────────────────
+  // PASO 1: Extraer cookie y validar nulidad
+  // ──────────────────────────────────────────────────────────────────────────
+  const currentToken = req.cookies?.refreshToken;
+  if (!currentToken) {
+    res.status(401).json({ success: false, message: "No refresh token provided" });
+    return;
+  }
 
-    const savedToken = await RefreshToken.findOne({ token: currentToken }).populate('userId');
-    
+  // ──────────────────────────────────────────────────────────────────────────
+  // PASO 2: ESCUDO ANTI-DoS — Verificación criptográfica ANTES de tocar BD
+  //
+  // Si el token es basura ("abc123") o fue firmado con otra clave, jwt.verify
+  // falla en microsegundos de CPU sin generar ninguna consulta de I/O a Mongo.
+  // Esto protege el Connection Pool contra ataques de inundación.
+  // ──────────────────────────────────────────────────────────────────────────
+  try {
+    jwt.verify(currentToken, JWT_REFRESH_SECRET as string);
+  } catch (jwtError) {
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+    res.status(401).json({ success: false, message: "Invalid refresh token" });
+    return;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // PASO 3: Iniciar transacción Mongoose (ACID)
+  //
+  // Toda la lógica de lectura + revocación + creación es atómica.
+  // Si MongoDB falla a mitad de camino, abortTransaction() hace rollback
+  // y el token viejo NO queda revocado → la sesión del usuario sobrevive.
+  // ──────────────────────────────────────────────────────────────────────────
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // ────────────────────────────────────────────────────────────────────────
+    // PASO 4: Consultar BD (ahora seguro — solo tokens criptográficamente válidos llegan aquí)
+    // ────────────────────────────────────────────────────────────────────────
+    const savedToken = await RefreshToken.findOne({ token: currentToken })
+      .populate<{ userId: IUser }>('userId')
+      .session(session);
+
     if (!savedToken) {
-      res.clearCookie("refreshToken");
+      await session.abortTransaction();
+      session.endSession();
+      res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+      });
       res.status(401).json({ success: false, message: "Invalid refresh token" });
       return;
     }
 
-    // Rotación y Detección de Robo (Reuso de Token)
+    // ────────────────────────────────────────────────────────────────────────
+    // PASO 5: Detección de Robo CON Ventana de Gracia
+    //
+    // Problema original: Un micro-corte de red causa que el cliente no reciba
+    // la nueva cookie y reintente con la vieja, disparando la revocación nuclear.
+    //
+    // Solución: Si el token fue revocado hace menos de GRACE_PERIOD_MS (15s),
+    // asumimos que es un reintento legítimo y reenviamos el token hijo.
+    // Si pasó la ventana → es un ataque real → revocamos toda la familia.
+    // ────────────────────────────────────────────────────────────────────────
     if (savedToken.isRevoked) {
-      // Intento de uso de token rotado/revocado. Revocar toda la familia.
+      const replacedAt = savedToken.replacedAt;
+      const replacedByToken = savedToken.replacedByToken;
+
+      // ¿Existe marca de rotación y estamos dentro de la ventana de gracia?
+      if (replacedAt && replacedByToken) {
+        const elapsed = Date.now() - replacedAt.getTime();
+
+        if (elapsed < GRACE_PERIOD_MS) {
+          // CASO A: Reintento legítimo (< 15s)
+          // Buscamos el token hijo que lo reemplazó y lo reenviamos.
+          const childToken = await RefreshToken.findOne({ token: replacedByToken })
+            .populate<{ userId: IUser }>('userId')
+            .session(session);
+
+          if (childToken && !childToken.isRevoked) {
+            await session.abortTransaction();
+            session.endSession();
+
+            const childUser = childToken.userId as IUser;
+            const newAccessToken = generateAccessToken(childUser);
+
+            res.cookie("refreshToken", replacedByToken, {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === "production",
+              sameSite: "strict",
+              maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+
+            res.status(200).json({
+              success: true,
+              token: newAccessToken,
+            });
+            return;
+          }
+        }
+      }
+
+      // CASO B: Robo real (ventana expirada o sin marca de rotación)
+      // Revocación nuclear: invalida toda la familia de tokens.
       await RefreshToken.updateMany(
         { familyId: savedToken.familyId },
         { isRevoked: true }
-      );
-      res.clearCookie("refreshToken");
+      ).session(session);
+
+      await session.commitTransaction();
+      session.endSession();
+
+      res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+      });
       res.status(401).json({ success: false, message: "Token reuse detected. Session terminated." });
       return;
     }
 
-    // Verificar expiración del token en BD
+    // ────────────────────────────────────────────────────────────────────────
+    // PASO 6: Verificar expiración del token en BD
+    // ────────────────────────────────────────────────────────────────────────
     if (savedToken.expiresAt < new Date()) {
-      res.clearCookie("refreshToken");
+      await session.abortTransaction();
+      session.endSession();
+      res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+      });
       res.status(401).json({ success: false, message: "Refresh token expired" });
       return;
     }
 
-    const user = savedToken.userId as any;
-    if (!user) {
-      res.clearCookie("refreshToken");
+    // ────────────────────────────────────────────────────────────────────────
+    // PASO 7: Validación estricta del usuario poblado (elimina 'as any')
+    // ────────────────────────────────────────────────────────────────────────
+    const user = savedToken.userId as IUser;
+    if (!user || !user._id) {
+      await session.abortTransaction();
+      session.endSession();
+      res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+      });
       res.status(401).json({ success: false, message: "User not found" });
       return;
     }
 
-    // Generar nuevos tokens (Rotación Estricta)
+    // ────────────────────────────────────────────────────────────────────────
+    // PASO 8: Generar nuevos tokens (Rotación Estricta)
+    // ────────────────────────────────────────────────────────────────────────
     const newAccessToken = generateAccessToken(user);
     const newRefreshTokenString = generateRefreshToken(user);
 
-    // Revocar el token usado
+    // ────────────────────────────────────────────────────────────────────────
+    // PASO 9: Rotación atómica — revocar viejo + crear nuevo (misma transacción)
+    //
+    // Se estampan replacedAt y replacedByToken para habilitar la ventana de
+    // gracia en caso de reintento legítimo por pérdida de paquete HTTP.
+    // ────────────────────────────────────────────────────────────────────────
     savedToken.isRevoked = true;
-    await savedToken.save();
+    savedToken.replacedAt = new Date();
+    savedToken.replacedByToken = newRefreshTokenString;
+    await savedToken.save({ session });
 
-    // Crear el nuevo token en la BD, misma familia
     const expireDate = new Date();
     expireDate.setDate(expireDate.getDate() + 7);
 
-    await RefreshToken.create({
-      token: newRefreshTokenString,
-      userId: user._id,
-      familyId: savedToken.familyId,
-      expiresAt: expireDate,
-    });
+    await RefreshToken.create(
+      [
+        {
+          token: newRefreshTokenString,
+          userId: user._id,
+          familyId: savedToken.familyId,
+          expiresAt: expireDate,
+        },
+      ],
+      { session }
+    );
 
-    // Emitir nueva cookie
+    // ────────────────────────────────────────────────────────────────────────
+    // PASO 10: Commit atómico — todo o nada
+    // ────────────────────────────────────────────────────────────────────────
+    await session.commitTransaction();
+    session.endSession();
+
+    // ────────────────────────────────────────────────────────────────────────
+    // PASO 11: Emitir nueva cookie HttpOnly y responder
+    // ────────────────────────────────────────────────────────────────────────
     res.cookie("refreshToken", newRefreshTokenString, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -226,6 +367,8 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
       token: newAccessToken,
     });
   } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction();
+    session.endSession();
     console.error("Error in refreshToken ", error);
     res.status(500).json({ success: false, message: "Internal server error" });
   }

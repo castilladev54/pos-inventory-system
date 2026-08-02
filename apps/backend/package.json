@@ -31,7 +31,7 @@
     "mongoose": "^9.2.4",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
-    "zod": "^3.23.8"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

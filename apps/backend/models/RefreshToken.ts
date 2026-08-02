@@ -6,6 +6,8 @@ export interface IRefreshToken extends Document {
   familyId: string;
   isRevoked: boolean;
   expiresAt: Date;
+  replacedAt?: Date;
+  replacedByToken?: string;
 }
 
 const refreshTokenSchema = new Schema<IRefreshToken>({
@@ -14,6 +16,8 @@ const refreshTokenSchema = new Schema<IRefreshToken>({
   familyId: { type: String, required: true }, // To track token rotation families
   isRevoked: { type: Boolean, default: false },
   expiresAt: { type: Date, required: true, expires: 0 }, // TTL index to auto-delete
+  replacedAt: { type: Date, default: null },         // Cuándo fue rotado (ventana de gracia)
+  replacedByToken: { type: String, default: null },  // Token hijo que lo reemplazó
 }, { timestamps: true });
 
 export const RefreshToken = mongoose.model<IRefreshToken>('RefreshToken', refreshTokenSchema);

@@ -95,7 +95,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const res = await api.get('/api/auth/refresh');
+        const res = await api.post('/api/auth/refresh');
         const newToken = res.data.token;
         
         useAuthStore.getState().actions.updateToken(newToken);

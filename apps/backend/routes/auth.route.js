@@ -7,7 +7,7 @@ import { createUserSchema, loginSchema, forgotPasswordSchema, resetPasswordSchem
 const router = express.Router();
 
 router.get("/check-auth", verifyToken, checkAuth)
-router.get("/refresh", refreshToken);
+router.post("/refresh", refreshToken);
 router.post("/create-user", verifyToken, validate(createUserSchema), createUser); // ¡Solo admins!
 router.post("/login", validate(loginSchema), login);
 router.post("/logout", logout);
