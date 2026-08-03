@@ -4,6 +4,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { api } from '../../api/axiosClient';
+import { useAuthStore } from '../../store/authStore';
 import type { IStockTransfer } from '@inventory/shared';
 import type { BranchId, StockTransferId } from '@inventory/shared';
 
@@ -62,7 +63,7 @@ export function useUpdateStockTransferStatus() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: stockTransferKeys.all });
       // Invalidar productos porque el stock ha cambiado
-      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['products', useAuthStore.getState().activeBranchId] });
     },
   });
 }

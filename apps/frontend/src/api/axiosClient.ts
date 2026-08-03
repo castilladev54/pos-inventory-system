@@ -14,6 +14,7 @@ let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value: string) => void;
   reject: (reason: AxiosError) => void;
+  signal?: AbortSignal;
 }> = [];
 
 const processQueue = (error: AxiosError | null, token: string | null = null) => {
@@ -81,8 +82,23 @@ api.interceptors.response.use(
     if (status === 401 && originalRequest.url !== '/api/auth/refresh' && !originalRequest._retry) {
       if (isRefreshing) {
         try {
+          const signal = originalRequest.signal;
           const newToken = await new Promise<string>((resolve, reject) => {
-            failedQueue.push({ resolve, reject });
+            const entry = { resolve, reject, signal };
+
+            // 🚨 PROTECCIÓN DE ENVENENAMIENTO DE CACHÉ Y RACE CONDITIONS
+            if (signal?.aborted) {
+              reject(new axios.Cancel('Request aborted before refresh completed'));
+              return;
+            }
+
+            signal?.addEventListener('abort', () => {
+              reject(new axios.Cancel('Request aborted during token refresh'));
+              // 🔥 Previene la fuga de memoria retirando la promesa muerta de la cola
+              failedQueue = failedQueue.filter(item => item !== entry);
+            }, { once: true });
+
+            failedQueue.push(entry);
           });
           originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
           return api(originalRequest);

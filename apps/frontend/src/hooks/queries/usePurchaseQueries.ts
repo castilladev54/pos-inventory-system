@@ -5,6 +5,7 @@ import {
   keepPreviousData,
 } from '@tanstack/react-query';
 import API from '../../api/axios';
+import { useAuthStore } from '../../store/authStore';
 import type {
   Purchase,
   PurchaseId,
@@ -16,13 +17,13 @@ import type {
 // ─── Query Keys ──────────────────────────────────────────────────────────────
 
 export const purchaseKeys = {
-  all: ['purchases'] as const,
-  lists: () => [...purchaseKeys.all, 'list'] as const,
-  list: (page: number, limit: number, status?: PurchaseDbStatus) =>
-    [...purchaseKeys.lists(), { page, limit, status }] as const,
-  details: () => [...purchaseKeys.all, 'detail'] as const,
-  detail: (id: PurchaseId) => [...purchaseKeys.details(), id] as const,
-  payments: () => [...purchaseKeys.all, 'payments'] as const,
+  all: (branchId: string | null) => ['purchases', branchId] as const,
+  lists: (branchId: string | null) => [...purchaseKeys.all(branchId), 'list'] as const,
+  list: (branchId: string | null, page: number, limit: number, status?: PurchaseDbStatus) =>
+    [...purchaseKeys.lists(branchId), { page, limit, status }] as const,
+  details: (branchId: string | null) => [...purchaseKeys.all(branchId), 'detail'] as const,
+  detail: (branchId: string | null, id: PurchaseId) => [...purchaseKeys.details(branchId), id] as const,
+  payments: (branchId: string | null) => [...purchaseKeys.all(branchId), 'payments'] as const,
 };
 
 // ─── Tipos de Payload ─────────────────────────────────────────────────────────
@@ -62,11 +63,12 @@ export interface SupplierPayment {
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
 export function usePurchasesQuery(page: number, limit: number, status?: PurchaseDbStatus) {
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (status) params.set('status', status);
 
   return useQuery<PurchaseListResponse>({
-    queryKey: purchaseKeys.list(page, limit, status),
+    queryKey: purchaseKeys.list(activeBranchId, page, limit, status),
     queryFn: async ({ signal }) => {
       const res = await API.get(`/purchases?${params.toString()}`, { signal });
       const data = res.data;
@@ -90,8 +92,9 @@ export function usePurchasesQuery(page: number, limit: number, status?: Purchase
  * que el componente pueda iterar directamente.
  */
 export function usePurchaseDetailQuery(id: PurchaseId | null) {
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useQuery<Purchase>({
-    queryKey: purchaseKeys.detail(id as PurchaseId),
+    queryKey: purchaseKeys.detail(activeBranchId, id as PurchaseId),
     queryFn: async ({ signal }) => {
       const res = await API.get(`/purchases/${id}`, { signal });
       const payload = res.data as PurchaseWithDetails | { purchase: Purchase };
@@ -109,8 +112,9 @@ export function usePurchaseDetailQuery(id: PurchaseId | null) {
 
 /** Obtener historial de pagos a proveedores */
 export function usePurchasePaymentsQuery(global?: boolean) {
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useQuery<SupplierPayment[]>({
-    queryKey: [...purchaseKeys.payments(), { global }],
+    queryKey: [...purchaseKeys.payments(activeBranchId), { global }],
     queryFn: async ({ signal }) => {
       const headers: Record<string, string> = {};
       if (global) headers['x-global-request'] = 'true';
@@ -127,14 +131,15 @@ export function usePurchasePaymentsQuery(global?: boolean) {
 
 export function useCreatePurchase() {
   const qc = useQueryClient();
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<Purchase, Error, CreatePurchasePayload>({
     mutationFn: async (payload) => {
       const res = await API.post('/purchases', payload);
       return (res.data.purchase ?? res.data) as Purchase;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: purchaseKeys.all });
-      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: purchaseKeys.all(activeBranchId) });
+      qc.invalidateQueries({ queryKey: ['products', activeBranchId] });
     },
   });
 }
@@ -142,27 +147,29 @@ export function useCreatePurchase() {
 /** Registrar un abono a una compra */
 export function useAddPaymentToPurchase() {
   const qc = useQueryClient();
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<Purchase, Error, { id: PurchaseId; data: AddPaymentPayload }>({
     mutationFn: async ({ id, data }) => {
       const res = await API.patch(`/purchases/${id}/payment`, data);
       return (res.data.purchase ?? res.data) as Purchase;
     },
     onSuccess: (_, { id }) => {
-      qc.invalidateQueries({ queryKey: purchaseKeys.all });
-      qc.invalidateQueries({ queryKey: purchaseKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: purchaseKeys.all(activeBranchId) });
+      qc.invalidateQueries({ queryKey: purchaseKeys.detail(activeBranchId, id) });
     },
   });
 }
 
 export function useDeletePurchase() {
   const qc = useQueryClient();
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<void, Error, PurchaseId>({
     mutationFn: async (id) => {
       await API.delete(`/purchases/${id}`);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: purchaseKeys.all });
-      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: purchaseKeys.all(activeBranchId) });
+      qc.invalidateQueries({ queryKey: ['products', activeBranchId] });
     },
   });
 }

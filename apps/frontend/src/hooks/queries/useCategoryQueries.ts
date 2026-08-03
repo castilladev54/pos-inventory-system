@@ -4,6 +4,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import API from '../../api/axios';
+import { useAuthStore } from '../../store/authStore';
 import type { Category, CategoryId } from '@inventory/shared';
 
 // ─── Query Keys ──────────────────────────────────────────────────────────────
@@ -100,7 +101,7 @@ export function useDeleteCategory() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: categoryKeys.all });
-      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['products', useAuthStore.getState().activeBranchId] });
     },
   });
 }

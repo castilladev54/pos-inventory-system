@@ -5,6 +5,7 @@ import {
   keepPreviousData,
 } from '@tanstack/react-query';
 import API from '../../api/axios';
+import { useAuthStore } from '../../store/authStore';
 import type {
   Sale,
   SaleId,
@@ -16,9 +17,9 @@ import type {
 // ─── Query Keys ──────────────────────────────────────────────────────────────
 
 export const saleKeys = {
-  all: ['sales'] as const,
-  lists: () => [...saleKeys.all, 'list'] as const,
-  list: (filters: SaleQueryFilters) => [...saleKeys.lists(), filters] as const,
+  all: (branchId: string | null) => ['sales', branchId] as const,
+  lists: (branchId: string | null) => [...saleKeys.all(branchId), 'list'] as const,
+  list: (branchId: string | null, filters: SaleQueryFilters) => [...saleKeys.lists(branchId), filters] as const,
 };
 
 // ─── Tipos de Payload ─────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ interface SaleListResponse {
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
 export function useSalesQuery(filters: SaleQueryFilters) {
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   const params = new URLSearchParams({
     page: String(filters.page),
     limit: String(filters.limit),
@@ -75,7 +77,7 @@ export function useSalesQuery(filters: SaleQueryFilters) {
   if (filters.paymentMethod && filters.paymentMethod !== 'all') params.set('paymentMethod', filters.paymentMethod);
 
   return useQuery<SaleListResponse>({
-    queryKey: saleKeys.list(filters),
+    queryKey: saleKeys.list(activeBranchId, filters),
     queryFn: async ({ signal }) => {
       const headers: Record<string, string> = {};
       if (filters.global) headers['x-global-request'] = 'true';
@@ -99,6 +101,7 @@ export function useSalesQuery(filters: SaleQueryFilters) {
 
 export function useCreateSale() {
   const qc = useQueryClient();
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<Sale, Error, CreateSalePayload>({
     mutationFn: async ({ signal, ...payload }) => {
       const res = await API.post('/sales', payload, { signal });
@@ -106,8 +109,8 @@ export function useCreateSale() {
     },
     onSuccess: () => {
       // Una venta descuenta stock → invalida productos + ventas + analytics
-      qc.invalidateQueries({ queryKey: saleKeys.all });
-      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: saleKeys.all(activeBranchId) });
+      qc.invalidateQueries({ queryKey: ['products', activeBranchId] });
     },
   });
 }
@@ -115,14 +118,15 @@ export function useCreateSale() {
 /** Cancelar una venta — el backend devuelve el stock y marca is_cancelled: true */
 export function useCancelSale() {
   const qc = useQueryClient();
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<Sale, Error, SaleId>({
     mutationFn: async (id) => {
       const res = await API.put(`/sales/${id}/cancel`); // Nota: El store legacy usa PUT /sales/:id/cancel
       return (res.data.sale ?? res.data) as Sale;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: saleKeys.all });
-      qc.invalidateQueries({ queryKey: ['products'] }); // stock regresa al inventario
+      qc.invalidateQueries({ queryKey: saleKeys.all(activeBranchId) });
+      qc.invalidateQueries({ queryKey: ['products', activeBranchId] }); // stock regresa al inventario
     },
   });
 }
@@ -130,14 +134,15 @@ export function useCancelSale() {
 /** Actualizar una venta (Editar venta) */
 export function useUpdateSale() {
   const qc = useQueryClient();
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<Sale, Error, { id: SaleId; data: UpdateSalePayload }>({
     mutationFn: async ({ id, data }) => {
       const res = await API.patch(`/sales/${id}`, data);
       return (res.data.sale ?? res.data) as Sale;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: saleKeys.all });
-      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: saleKeys.all(activeBranchId) });
+      qc.invalidateQueries({ queryKey: ['products', activeBranchId] });
     },
   });
 }

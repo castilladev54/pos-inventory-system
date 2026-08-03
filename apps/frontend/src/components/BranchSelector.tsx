@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useIsMutating } from '@tanstack/react-query';
 import { Building2, ChevronDown, Check, MapPin } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useBranchesQuery } from '../hooks/queries/useBranchQueries';
@@ -19,6 +20,7 @@ import type { BranchId } from '@inventory/shared';
  */
 const BranchSelector: React.FC = () => {
   const queryClient = useQueryClient();
+  const isMutating = useIsMutating();
   const { user, activeBranchId, setActiveBranch } = useAuthStore();
   const { data: branches = [] } = useBranchesQuery();
 
@@ -52,6 +54,11 @@ const BranchSelector: React.FC = () => {
   const activeBranch = branches.find((b) => b._id === activeBranchId);
 
   const handleBranchChange = (branchId: BranchId) => {
+    if (isMutating > 0) {
+      toast.error('Hay operaciones en curso. Por favor, espera a que terminen antes de cambiar de sucursal.');
+      return;
+    }
+
     if (branchId === activeBranchId) {
       setIsOpen(false);
       return;
@@ -73,13 +80,21 @@ const BranchSelector: React.FC = () => {
     <div ref={dropdownRef} className="relative" id="branch-selector">
       {/* ── Trigger Button ─────────────────────────────────────────────── */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (isMutating > 0) {
+            toast.error('Operaciones en curso. Espera a que terminen.');
+            return;
+          }
+          setIsOpen(!isOpen);
+        }}
+        disabled={isMutating > 0}
         className={`
           flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium
           transition-all duration-200 select-none
           border border-white/[0.08] bg-white/[0.04]
           hover:bg-white/[0.08] hover:border-amber-500/30
           ${isOpen ? 'bg-white/[0.08] border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.08)]' : ''}
+          ${isMutating > 0 ? 'opacity-50 cursor-not-allowed' : ''}
         `}
         aria-haspopup="listbox"
         aria-expanded={isOpen}

@@ -4,6 +4,7 @@ import { X, Save } from "lucide-react";
 import Button from "../atoms/Button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUpdateSale, saleKeys } from "../../hooks/queries/useSaleQueries";
+import { useAuthStore } from "../../store/authStore";
 import type { SaleDetailDTO, PaymentMethod } from '@inventory/shared';
 import type { FormEvent } from "react";
 import toast from "react-hot-toast";
@@ -81,8 +82,8 @@ const EditSaleModal = ({ isOpen, onClose, sale, onSave }: EditSaleModalProps) =>
         onSuccess: async (data) => {
           // Fuerza a limpiar la caché de ['products'] y ['sales'] de manera simultánea en el bloque onSuccess del useMutation
           await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ["products"] }),
-            queryClient.invalidateQueries({ queryKey: saleKeys.all }),
+            queryClient.invalidateQueries({ queryKey: ["products", useAuthStore.getState().activeBranchId] }),
+            queryClient.invalidateQueries({ queryKey: saleKeys.all(useAuthStore.getState().activeBranchId) }),
           ]);
           onSave(data as any);
         },

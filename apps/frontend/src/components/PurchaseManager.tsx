@@ -570,7 +570,7 @@ const PurchaseManager = () => {
           });
           toast.success(`Añadido: ${product.name}`);
           // Refrescar catálogo de productos
-          queryClient.invalidateQueries({ queryKey: productKeys.posCatalog() });
+          queryClient.invalidateQueries({ queryKey: productKeys.posCatalog(useAuthStore.getState().activeBranchId) });
         }
       } catch {
         toast.error(`Código "${code}" no encontrado`);

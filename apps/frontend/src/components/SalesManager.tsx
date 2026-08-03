@@ -306,7 +306,7 @@ const SalesManager = () => {
   const handleViewDetail = async (id: SaleId) => {
     try {
       const sale = await queryClient.fetchQuery<SaleDetailDTO>({
-        queryKey: [...saleKeys.all, "detail", id],
+        queryKey: [...saleKeys.all(activeBranchId), "detail", id],
         queryFn: async () => {
           const res = await API.get(`/sales/${id}`);
           return res.data.sale ?? res.data;

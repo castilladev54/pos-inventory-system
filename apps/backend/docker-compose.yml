@@ -1,22 +1,23 @@
 services:
-  # ─── MongoDB ──────────────────────────────────────────────────
+  # ─── MongoDB (Replica Set required for transactions) ──────────
   mongo:
-    image: mongo:7
+    image: bitnami/mongodb:7.0
     container_name: inventory-mongo
     restart: unless-stopped
-    # Use environment vars, or fail if not provided (no insecure defaults)
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:?error}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?error}
-      MONGO_INITDB_DATABASE: inventarioCrud
+      MONGODB_REPLICA_SET_MODE: primary
+      MONGODB_REPLICA_SET_NAME: rs0
+      MONGODB_ROOT_USER: ${MONGO_USER:?error}
+      MONGODB_ROOT_PASSWORD: ${MONGO_PASSWORD:?error}
+      MONGODB_DATABASE: inventarioCrud
     volumes:
-      - mongo_data:/data/db
+      - mongo_data:/bitnami/mongodb
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongosh", "-u", "${MONGO_USER}", "-p", "${MONGO_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 20s
 
   # ─── Backend API ──────────────────────────────────────────────
   api:
@@ -31,7 +32,7 @@ services:
       PORT: 3000
       NODE_ENV: production
       # Use the user-defined variables for connection
-      MONGO_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/inventarioCrud?authSource=admin
+      MONGO_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/inventarioCrud?authSource=admin&replicaSet=rs0
       JWT_SECRET: ${JWT_SECRET:?error}
       MAILTRAP_TOKEN: ${MAILTRAP_TOKEN:?error}
       MAILTRAP_ENDPOINT: ${MAILTRAP_ENDPOINT:-https://send.api.mailtrap.io}
