@@ -11,7 +11,10 @@ export type DashboardTab =
   | 'sales'
   | 'analytics'
   | 'staff'
-  | 'transfers';
+  | 'transfers'
+  | 'settings'
+  | 'plans'
+  | 'adminCreateUser';
 
 interface UiState {
   /** Pestaña activa en el Dashboard */

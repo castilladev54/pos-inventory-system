@@ -13,6 +13,8 @@ import StaffManager from '../components/StaffManager';
 import StockTransferManager from '../components/inventory/StockTransferManager';
 import PermissionGuard from '../components/PermissionGuard';
 import { AiChatWindow } from '../components/organisms/AiChatWindow';
+import SettingsGrid from '../components/settings/SettingsGrid';
+import PlansView from '../components/plans/PlansView';
 import { Bot, Sparkles, ShieldAlert } from 'lucide-react';
 
 const DashboardPage = () => {
@@ -62,6 +64,10 @@ const DashboardPage = () => {
         )}
         {/* fallback extra para rutas admin custom */}
         {(activeTab as string) === 'adminCreateUser' && <AdminUserCreator />}
+        
+        {/* Nuevas vistas agregadas */}
+        {activeTab === 'settings' && <SettingsGrid />}
+        {activeTab === 'plans' && <PlansView />}
       </main>
 
       {/* Floating AI Button (Protected) */}

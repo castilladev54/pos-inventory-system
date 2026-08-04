@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Menu, Moon, Sun, ChevronLeft, Search, Home,
   TrendingUp, Store, ChevronDown, ClipboardCheck, Archive,
-  Bell, Settings, LogOut, Image as ImageIcon, Mic, UserPlus, ShoppingBag
+  Bell, Settings, LogOut, Image as ImageIcon, Mic, UserPlus, ShoppingBag, Zap
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import PermissionGuard from './PermissionGuard';
@@ -162,71 +162,7 @@ const Sidebar = ({ isOpen, setIsOpen, activeTab, setActiveTab }) => {
               )}
             </li>
 
-            {/* Compras (Entradas) - Módulo Destacado */}
-            <PermissionGuard requiredPermission="purchases_access">
-              <li>
-                <button
-                  onClick={() => setActiveTab("purchases")}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${activeTab === 'purchases' ? 'bg-orange-500/10 border border-orange-500/20 text-orange-500 font-bold' : isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-200'}`}
-                >
-                  <ShoppingBag size={22} className="shrink-0" />
-                  {isOpen && <span className="whitespace-nowrap">Registro de Compras</span>}
-                </button>
-              </li>
-            </PermissionGuard>
 
-            {/* Personal (RBAC) */}
-            <PermissionGuard requiredPermission="staff_management">
-              <li>
-                <button
-                  onClick={() => setActiveTab("staff")}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${activeTab === 'staff' ? 'bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold' : isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-200'}`}
-                >
-                  <UserPlus size={22} className="shrink-0" />
-                  {isOpen && <span className="whitespace-nowrap">Personal</span>}
-                </button>
-              </li>
-            </PermissionGuard>
-
-            {/* Admin (Solo si el rol es admin) */}
-            {user?.role === "admin" && (
-              <>
-                <li>
-                  <button
-                    onClick={() => setActiveTab("adminCreateUser")}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${activeTab === 'adminCreateUser' ? 'bg-orange-500/10 text-orange-400 font-medium' : isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-200'}`}
-                  >
-                    <UserPlus size={22} className="shrink-0 text-orange-400" />
-                    {isOpen && <span className="font-medium whitespace-nowrap">Crear Cliente</span>}
-                  </button>
-                </li>
-              </>
-            )}
-
-            {/* Carpetas */}
-            <li>
-              <button
-                onClick={() => {
-                  if (!isOpen) setIsOpen(true);
-                  toggleDropdown('carpetas');
-                }}
-                className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-200'}`}
-              >
-                <div className="flex items-center gap-3">
-                  <Archive size={22} className="shrink-0" />
-                  {isOpen && <span className="font-medium whitespace-nowrap">Carpetas</span>}
-                </div>
-                {isOpen && (
-                  <ChevronDown size={16} className={`transition-transform duration-300 ${openDropdowns['carpetas'] ? 'rotate-180' : ''}`} />
-                )}
-              </button>
-              {isOpen && openDropdowns['carpetas'] && (
-                <ul className="mt-2 ml-4 pl-4 border-l border-white/10 space-y-2">
-                  <li><a href="#" className="flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-white/10 text-sm transition-colors"><ImageIcon size={16} /> Imagenes</a></li>
-                  <li><a href="#" className="flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-white/10 text-sm transition-colors"><Mic size={16} /> Audio</a></li>
-                </ul>
-              )}
-            </li>
           </ul>
         </div>
 
@@ -240,12 +176,26 @@ const Sidebar = ({ isOpen, setIsOpen, activeTab, setActiveTab }) => {
               </a>
             </li>
             <li>
-              <a href="#" className={`flex items-center justify-between p-3 rounded-xl transition-colors ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-200'}`}>
+              <button 
+                onClick={() => setActiveTab('settings')}
+                className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors ${activeTab === 'settings' ? 'bg-white/10 text-orange-400 font-medium' : isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-200'}`}
+              >
                 <div className="flex items-center gap-3">
                   <Settings size={22} className="shrink-0" />
                   {isOpen && <span className="font-medium whitespace-nowrap">Configuraciones</span>}
                 </div>
-              </a>
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('plans')}
+                className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors ${activeTab === 'plans' ? 'bg-orange-500/20 text-orange-400 font-bold border border-orange-500/30' : isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-200'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <Zap size={22} className="shrink-0 text-orange-400" />
+                  {isOpen && <span className="font-medium whitespace-nowrap">Planes</span>}
+                </div>
+              </button>
             </li>
             {/* Dark mode toggle */}
             <li>
