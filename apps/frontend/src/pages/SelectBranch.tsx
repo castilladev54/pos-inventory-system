@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchesQuery, useCreateBranch } from '@/hooks/queries/useBranchQueries';
 import type { BranchId } from '@inventory/shared';
@@ -9,6 +10,7 @@ export const SelectBranch: React.FC = () => {
   const { user, setActiveBranch } = useAuthStore();
   const { data: branches = [], isLoading } = useBranchesQuery();
   const createBranchMutation = useCreateBranch();
+  const queryClient = useQueryClient();
 
   // Estado local para creación rápida del Customer
   const [newBranchName, setNewBranchName] = useState('');
@@ -119,9 +121,14 @@ export const SelectBranch: React.FC = () => {
           {branches.map((branch) => (
             <button
               key={branch._id}
-              onClick={() => {
-                setActiveBranch(branch._id as BranchId);
-                navigate('/dashboard');
+              onClick={async () => {
+                try {
+                  setActiveBranch(branch._id as BranchId);
+                  await queryClient.invalidateQueries();
+                  navigate('/dashboard');
+                } catch (error) {
+                  console.error("Error al seleccionar sucursal:", error);
+                }
               }}
               className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-800/50 p-4 text-left transition hover:border-amber-500/50 hover:bg-slate-800"
             >

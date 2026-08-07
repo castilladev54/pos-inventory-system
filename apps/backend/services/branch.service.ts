@@ -1,4 +1,5 @@
-import { Branch } from '../models/Branch.js';
+import mongoose from 'mongoose';
+import { Branch, IBranch } from '../models/Branch.js';
 import { BranchInventory } from '../models/BranchInventory.js';
 import { BusinessOwnerId, BranchId } from '../types/brands.js';
 
@@ -64,8 +65,17 @@ export const fetchBranchInventory = async (branchId: BranchId) => {
 /**
  * Devuelve todas las sucursales del negocio, ordenadas por fecha de creación.
  */
-export const fetchBranches = async (ownerId: BusinessOwnerId) => {
-  return Branch.find({ owner_id: ownerId }).sort({ createdAt: -1 }).lean();
+export const fetchBranches = async (
+  ownerId: BusinessOwnerId,
+  actor: { role: string; assignedBranches: string[] }
+) => {
+  const query: mongoose.FilterQuery<IBranch> = { owner_id: ownerId };
+
+  if (actor.role === 'employee') {
+    query._id = { $in: actor.assignedBranches };
+  }
+
+  return Branch.find(query).sort({ createdAt: -1 }).lean();
 };
 
 // ─── Obtener Sucursal por ID (con tenant isolation) ───────────────────────────

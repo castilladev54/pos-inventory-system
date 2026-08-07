@@ -32,7 +32,12 @@ const handleServiceError = (error: unknown, res: Response): void => {
  */
 export const getBranches = async (req: Request, res: Response): Promise<void> => {
   try {
-    const branches = await fetchBranches(req.businessOwnerId);
+    const actor = {
+      role: req.userRole,
+      assignedBranches: req.assignedBranches
+    };
+
+    const branches = await fetchBranches(req.businessOwnerId, actor);
     res.status(200).json({ success: true, data: branches });
   } catch (error) {
     handleServiceError(error, res);

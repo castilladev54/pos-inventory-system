@@ -62,7 +62,15 @@ export const useAuthStore = create<AuthState>()(
           try {
             const res = await api.get('/api/auth/check-auth');
             if (res.data.success) {
-              const currentBranches = res.data.user.branches || []; 
+              // Obtener las sucursales reales del usuario para validar y poblar el store
+              let currentBranches = [];
+              try {
+                const branchesRes = await api.get('/api/branches');
+                currentBranches = branchesRes.data.data || [];
+              } catch (err) {
+                console.error("Error fetching branches in checkAuth:", err);
+              }
+              
               const activeBranches = currentBranches.filter((b: Branch) => b.is_active);
               const activeId = get().activeBranchId;
               
