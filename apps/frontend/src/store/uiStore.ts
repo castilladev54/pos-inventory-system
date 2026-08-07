@@ -14,6 +14,7 @@ export type DashboardTab =
   | 'transfers'
   | 'settings'
   | 'plans'
+  | 'branches'
   | 'adminCreateUser';
 
 interface UiState {

@@ -14,7 +14,7 @@ import StockTransferManager from '../components/inventory/StockTransferManager';
 import PermissionGuard from '../components/PermissionGuard';
 import { AiChatWindow } from '../components/organisms/AiChatWindow';
 import SettingsGrid from '../components/settings/SettingsGrid';
-import PlansView from '../components/plans/PlansView';
+import BranchManager from '../components/settings/BranchManager';
 import { Bot, Sparkles, ShieldAlert } from 'lucide-react';
 
 const DashboardPage = () => {
@@ -64,10 +64,12 @@ const DashboardPage = () => {
         )}
         {/* fallback extra para rutas admin custom */}
         {(activeTab as string) === 'adminCreateUser' && <AdminUserCreator />}
-        
+
         {/* Nuevas vistas agregadas */}
         {activeTab === 'settings' && <SettingsGrid />}
-        {activeTab === 'plans' && <PlansView />}
+        {activeTab === 'branches' && (
+          (user?.role === 'admin' || user?.role === 'customer') ? <BranchManager /> : <AccessDenied />
+        )}
       </main>
 
       {/* Floating AI Button (Protected) */}

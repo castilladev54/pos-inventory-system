@@ -20,10 +20,12 @@ export interface CreateEmployeePayload {
   email: string;
   password?: string;
   permissions: UserPermission[];
+  assigned_branches?: string[];
 }
 
 export interface UpdatePermissionsPayload {
   permissions: UserPermission[];
+  assigned_branches?: string[];
 }
 
 // ─── Queries ─────────────────────────────────────────────────────────────────

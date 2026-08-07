@@ -1,12 +1,13 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Shield, Plus, X, Check, Trash2, Key, Loader, ShoppingCart, DollarSign } from 'lucide-react';
+import { Users, Shield, Plus, X, Check, Trash2, Key, Loader, ShoppingCart, DollarSign, Store } from 'lucide-react';
 import {
   useStaffQuery,
   useCreateEmployee,
   useUpdatePermissions,
   useDeleteEmployee,
 } from '../hooks/queries';
+import { useBranchesQuery } from '../hooks/queries/useBranchQueries';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import type { UserPermission, UserProfile, UserId } from '@inventory/shared';
@@ -25,10 +26,11 @@ const AVAILABLE_PERMISSIONS: AvailablePermission[] = [
   { id: 'staff_management', label: 'Gestionar Empleados',  desc: 'Crear o eliminar cajeros' },
 ];
 
-const EMPTY_FORM = { name: '', email: '', password: '', permissions: [] as UserPermission[] };
+const EMPTY_FORM = { name: '', email: '', password: '', permissions: [] as UserPermission[], assigned_branches: [] as string[] };
 
 const StaffManager = () => {
   const { data: staff = [], isLoading } = useStaffQuery();
+  const { data: allBranches = [] } = useBranchesQuery();
   const { user } = useAuthStore();
 
   const createEmployeeMutation = useCreateEmployee();
@@ -39,6 +41,19 @@ const StaffManager = () => {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<UserId | null>(null);
   const [pendingPermissions, setPendingPermissions] = useState<UserPermission[] | null>(null);
+  const [pendingBranches, setPendingBranches] = useState<string[] | null>(null);
+
+  const handleToggleBranch = (
+    branchId: string,
+    current: string[],
+    setter: (b: string[]) => void
+  ) => {
+    if (current.includes(branchId)) {
+      setter(current.filter((id) => id !== branchId));
+    } else {
+      setter([...current, branchId]);
+    }
+  };
 
   const handleTogglePermission = (
     permId: UserPermission,
@@ -70,13 +85,16 @@ const StaffManager = () => {
 
   const handleUpdatePermissions = async (id: UserId, newPermissions: UserPermission[] | null) => {
     if (!newPermissions) return;
+    const payload: { permissions: UserPermission[]; assigned_branches?: string[] } = { permissions: newPermissions };
+    if (pendingBranches) payload.assigned_branches = pendingBranches;
     toast.promise(
-      updatePermissionsMutation.mutateAsync({ id, data: { permissions: newPermissions } }),
+      updatePermissionsMutation.mutateAsync({ id, data: payload }),
       {
         loading: 'Actualizando permisos...',
         success: () => {
           setEditingId(null);
           setPendingPermissions(null);
+          setPendingBranches(null);
           return 'Permisos actualizados';
         },
         error: (err: any) => err.response?.data?.message || 'Error al actualizar permisos',
@@ -213,7 +231,7 @@ const StaffManager = () => {
                     </div>
                   ) : (
                     <button
-                      onClick={() => { setEditingId(emp._id); setPendingPermissions(emp.permissions || []); }}
+                      onClick={() => { setEditingId(emp._id); setPendingPermissions(emp.permissions || []); setPendingBranches((emp as any).assigned_branches || []); }}
                       className="text-xs text-purple-400 hover:text-purple-300 transition-colors font-medium"
                     >
                       Editar
@@ -344,6 +362,43 @@ const StaffManager = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {/* Sucursales Asignadas */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-3 border-t border-gray-800 pt-4 mt-4 flex items-center gap-2">
+                    <Store size={16} className="text-pink-400" />
+                    Sucursales Asignadas
+                  </label>
+                  {allBranches.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic">No hay sucursales creadas. Crea una primero desde Configuraciones &gt; Sucursales.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-36 overflow-y-auto pr-2">
+                      {allBranches.map((branch) => (
+                        <div
+                          key={branch._id}
+                          onClick={() => handleToggleBranch(branch._id, formData.assigned_branches, (b) => setFormData({ ...formData, assigned_branches: b }))}
+                          className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all
+                            ${formData.assigned_branches.includes(branch._id)
+                              ? 'bg-pink-500/20 border-pink-500/50'
+                              : 'bg-gray-800/50 border-gray-700/50 hover:bg-gray-800'}`}
+                        >
+                          <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border transition-colors
+                            ${formData.assigned_branches.includes(branch._id)
+                              ? 'bg-pink-500 border-pink-500'
+                              : 'border-gray-500 bg-transparent'}`}>
+                            {formData.assigned_branches.includes(branch._id) && <Check size={14} className="text-white" />}
+                          </div>
+                          <div>
+                            <p className={`font-medium text-sm ${formData.assigned_branches.includes(branch._id) ? 'text-pink-200' : 'text-gray-300'}`}>
+                              {branch.name}
+                            </p>
+                            <p className="text-xs text-gray-500">{branch.address || 'Sin dirección'}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <button

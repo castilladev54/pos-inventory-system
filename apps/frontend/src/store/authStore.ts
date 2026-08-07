@@ -109,7 +109,8 @@ export const useAuthStore = create<AuthState>()(
               set({ 
                 user: res.data.user,
                 token: res.data.token,
-                isAuthenticated: true 
+                isAuthenticated: true,
+                activeBranchId: null, // Forzar selección de sucursal en cada login
               });
             }
           } catch (error: any) {

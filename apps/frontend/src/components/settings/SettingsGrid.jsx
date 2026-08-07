@@ -81,19 +81,21 @@ const SettingsGrid = () => {
           </p>
         </button>
 
-        {/* Sucursales (Placeholder) */}
-        <button
-          className="group flex flex-col p-6 rounded-2xl bg-black/40 border border-white/5 hover:border-pink-500/30 hover:bg-white/5 transition-all duration-300 text-left items-start opacity-70 hover:opacity-100"
-          onClick={() => console.log('Navegar a sucursales')}
-        >
-          <div className="p-4 rounded-xl bg-pink-500/10 text-pink-400 mb-4 group-hover:scale-110 transition-transform duration-300">
-            <Store size={32} />
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Sucursales</h3>
-          <p className="text-sm text-gray-400 leading-relaxed">
-            (Próximamente) Añade, edita y gestiona las distintas sucursales del negocio.
-          </p>
-        </button>
+        {/* Sucursales (Admin/Customer) */}
+        {(user?.role === 'admin' || user?.role === 'customer') && (
+          <button
+            className="group flex flex-col p-6 rounded-2xl bg-black/40 border border-white/5 hover:border-pink-500/30 hover:bg-white/5 transition-all duration-300 text-left items-start"
+            onClick={() => handleNavigation('branches')}
+          >
+            <div className="p-4 rounded-xl bg-pink-500/10 text-pink-400 mb-4 group-hover:scale-110 transition-transform duration-300">
+              <Store size={32} />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Sucursales</h3>
+            <p className="text-sm text-gray-400 leading-relaxed">
+              Añade, edita y gestiona las distintas sucursales del negocio.
+            </p>
+          </button>
+        )}
 
       </div>
     </div>
