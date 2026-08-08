@@ -42,6 +42,7 @@ export interface UserProfile {
   role: UserRole;
   permissions: UserPermission[];
   customer_id: BusinessOwnerId;
+  assigned_branches?: BranchId[];
   salesStats?: {
     transactionCount: number;
     totalVolumeUSD: number;

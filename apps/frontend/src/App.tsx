@@ -59,7 +59,7 @@ interface BranchGateProps {
 
 // BranchGate: ensure a branch is selected after authentication
 const BranchGate = ({ children }: BranchGateProps) => {
-  const { isAuthenticated, activeBranchId, branches, user } = useAuthStore();
+  const { isAuthenticated, activeBranchId, user } = useAuthStore();
   const location = useLocation();
 
   // If not authenticated, let ProtectedRoute handle redirection to login
@@ -67,14 +67,16 @@ const BranchGate = ({ children }: BranchGateProps) => {
 
   const esSuperAdmin = user?.role === 'admin' || user?.role === 'customer';
 
-  // Bloqueo estricto si no hay sucursales y no es administrador
-  if (branches.length === 0 && !esSuperAdmin) {
-    return <Navigate to="/select-branch" state={{ from: location }} replace />;
-  }
+  if (!esSuperAdmin) {
+    // 1. Bloqueo por carencia absoluta de asignaciones
+    if (!user?.assigned_branches || user.assigned_branches.length === 0) {
+      return <Navigate to="/select-branch" state={{ from: location }} replace />;
+    }
 
-  // If authenticated but no branch chosen, redirect to selector
-  if (!activeBranchId && !esSuperAdmin) {
-    return <Navigate to="/select-branch" state={{ from: location }} replace />;
+    // 2. Bloqueo por inyección de estado, sesión caducada o ID ajeno
+    if (!activeBranchId || !user.assigned_branches.includes(activeBranchId)) {
+      return <Navigate to="/select-branch" state={{ from: location }} replace />;
+    }
   }
 
   return children;

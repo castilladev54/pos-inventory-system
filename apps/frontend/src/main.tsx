@@ -13,6 +13,8 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 
 const handleGlobalError = (error: unknown) => {
+  if (axios.isCancel(error)) return;
+
   if (axios.isAxiosError(error)) {
     if (error.response?.status === 403) {
       toast.error("Permisos insuficientes para realizar esta acción.", { id: 'global-403' });
@@ -56,6 +58,7 @@ injectQueryClient(queryClient);
 
 // Registrar el callback para desacoplar el interceptor de Axios de la instancia de queryClient
 setOnUnauthorizedCallback(() => {
+  queryClient.cancelQueries();
   queryClient.clear();
 });
 

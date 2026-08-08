@@ -61,7 +61,7 @@ api.interceptors.request.use(
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -75,6 +75,11 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config;
     if (!originalRequest) return Promise.reject(error);
+
+    // Silenciar errores de cancelación de TanStack Query (no es un fallo de red real)
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
 
     const status = error.response?.status;
 
@@ -139,15 +144,27 @@ api.interceptors.response.use(
        useAuthStore.getState().actions.clearAuth();
     }
 
-    // Lock de Suscripción Expirada (Bloqueo global del backend)
-    // Delegamos la redirección (idealmente) a la UI, pero si es un hard-lock:
-    const errorMessage = (error.response?.data as any)?.message || '';
-    if (status === 403 && errorMessage.toLowerCase().includes('suscripción')) {
-      // Dejamos esto como caso especial si el negocio lo dicta,
-      // pero se recomienda que el ProtectedRoute capture isSubscriptionExpired.
-      // Siguiendo las reglas: eliminar manipulaciones de window.location.
-      useAuthStore.getState().actions.setSubscriptionExpired(true);
-    } 
+    // ─── CIRCUITO DE RESPUESTA: 403 Jurisdicción de Sucursal ────────────
+    // Cuando el backend detecta manipulación de x-branch-id o revocación
+    // de acceso en caliente, el interceptor aborta peticiones en vuelo,
+    // purga el estado corrupto y expulsa al usuario de inmediato.
+    if (status === 403) {
+      const errorCode = (error.response?.data as any)?.code;
+      const errorMessage = (error.response?.data as any)?.message || '';
+
+      if (errorCode === 'ERR_BRANCH_JURISDICTION') {
+        // 1. Purgar el activeBranchId corrupto de forma tipada y segura (null)
+        useAuthStore.getState().actions.setActiveBranch(null);
+        
+        // 2. Disparar callback de expulsión (main.tsx se encargará de cancelar queries y purgar)
+        onUnauthorizedCb?.();
+      }
+
+      // Lock de Suscripción Expirada (Bloqueo global del backend)
+      if (errorMessage.toLowerCase().includes('suscripción')) {
+        useAuthStore.getState().actions.setSubscriptionExpired(true);
+      }
+    }
 
     return Promise.reject(error);
   }

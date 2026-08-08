@@ -14,7 +14,6 @@ export function injectQueryClient(qc: { clear: () => void }) {
 interface AuthState {
   user: UserProfile | null;
   token: string | null;
-  branches: Branch[];
   activeBranchId: BranchId | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -26,8 +25,7 @@ interface AuthState {
   checkAuth: () => Promise<void>;
   login: (emailOrCredentials: string | Record<string, any>, password?: string) => Promise<void>;
   logout: () => Promise<void>;
-  setActiveBranch: (branchId: BranchId) => void;
-  setBranches: (branches: Branch[]) => void;
+  setActiveBranch: (branchId: BranchId | null) => void;
   clearAuth: () => void;
   setSubscriptionExpired: (status: boolean) => void;
   forgotPassword: (email: string) => Promise<void>;
@@ -41,8 +39,7 @@ interface AuthState {
     checkAuth: () => Promise<void>;
     login: (emailOrCredentials: string | Record<string, any>, password?: string) => Promise<void>;
     logout: () => Promise<void>;
-    setActiveBranch: (branchId: BranchId) => void;
-    setBranches: (branches: Branch[]) => void;
+    setActiveBranch: (branchId: BranchId | null) => void;
     clearAuth: () => void;
     setSubscriptionExpired: (status: boolean) => void;
     forgotPassword: (email: string) => Promise<void>;
@@ -62,32 +59,8 @@ export const useAuthStore = create<AuthState>()(
           try {
             const res = await api.get('/api/auth/check-auth');
             if (res.data.success) {
-              // Obtener las sucursales reales del usuario para validar y poblar el store
-              let currentBranches = [];
-              try {
-                const branchesRes = await api.get('/api/branches');
-                currentBranches = branchesRes.data.data || [];
-              } catch (err) {
-                console.error("Error fetching branches in checkAuth:", err);
-              }
-              
-              const activeBranches = currentBranches.filter((b: Branch) => b.is_active);
-              const activeId = get().activeBranchId;
-              
-              const isValidBranch = activeBranches.some((b: Branch) => b._id === activeId);
-              
-              if (activeId && !isValidBranch) {
-                if (activeBranches.length > 0) {
-                  set({ activeBranchId: activeBranches[0]._id });
-                } else {
-                  set({ activeBranchId: null });
-                }
-                _queryClientRef?.clear();
-              }
-
               set({ 
                 user: res.data.user, 
-                branches: activeBranches, 
                 isAuthenticated: true 
               });
             }
@@ -144,40 +117,14 @@ export const useAuthStore = create<AuthState>()(
           }
         },
 
-        setActiveBranch: (branchId: BranchId) => {
-          const targetBranch = get().branches.find(b => b._id === branchId);
-          
-          // Defensa contra sucursales fantasmas o borradas lógicamente
-          if (targetBranch && !targetBranch.is_active) {
-            throw new Error("No puedes activar una sucursal inactiva.");
-          }
-
+        setActiveBranch: (branchId: BranchId | null) => {
           set({ activeBranchId: branchId });
-          
-          set({ activeBranchId: branchId });
-        },
-
-        setBranches: (branches: Branch[]) => {
-          // Filtrar solo las sucursales que sigan activas
-          const activeBranches = branches.filter(b => b.is_active);
-          set({ branches: activeBranches });
-
-          // Si el operador tenía una sucursal activa pero ya no está en la lista de permitidas,
-          // auto-seleccionamos la primera disponible para no romper el flujo de UI.
-          const currentActive = get().activeBranchId;
-          const isStillValid = activeBranches.some(b => b._id === currentActive);
-          
-          if (!isStillValid && activeBranches.length > 0) {
-            const firstBranch = activeBranches[0];
-            if (firstBranch) set({ activeBranchId: firstBranch._id });
-          }
         },
 
         clearAuth: () => {
           set({ 
             user: null, 
             token: null,
-            branches: [], 
             activeBranchId: null, 
             isAuthenticated: false,
             isSubscriptionExpired: false,
@@ -260,7 +207,6 @@ export const useAuthStore = create<AuthState>()(
       return {
         user: null,
         token: null,
-        branches: [],
         activeBranchId: null,
         isAuthenticated: false,
         isLoading: false,

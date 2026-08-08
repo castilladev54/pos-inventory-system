@@ -56,6 +56,25 @@ export const injectBusinessContext = async (
     const headerBranchId = req.headers['x-branch-id'];
     if (headerBranchId && typeof headerBranchId === 'string' && Types.ObjectId.isValid(headerBranchId)) {
       req.branchId = new Types.ObjectId(headerBranchId) as unknown as BranchId;
+
+      // ─── AUDITORÍA ZERO-TRUST ─────────────────────────────────────────
+      // Validar que el ID operativo (dictado por el cliente) sea un subconjunto
+      // de la matriz criptográfica de sucursales autorizadas (firmada en el JWT).
+      // Dueños y Admins tienen acceso irrestricto a todas las sucursales del tenant.
+      if (req.userRole === 'employee') {
+        // Coerción explícita a string para anular discrepancias entre ObjectId y literales
+        const isAuthorized = req.assignedBranches?.some(
+          (id) => id.toString() === headerBranchId.toString()
+        );
+        if (!isAuthorized) {
+          res.status(403).json({
+            success: false,
+            code: 'ERR_BRANCH_JURISDICTION',
+            message: 'Acceso denegado. Jurisdicción de sucursal inválida o manipulada.',
+          });
+          return;
+        }
+      }
     }
 
     next();
