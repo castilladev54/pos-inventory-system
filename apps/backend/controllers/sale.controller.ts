@@ -1,8 +1,21 @@
+import { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import { invalidateCache, getOrSetCache, getCacheVersion, bumpCacheVersion, buildPaginatedKey } from '../lib/redis.js';
+import {
+  invalidateCache,
+  getOrSetCache,
+  getCacheVersion,
+  bumpCacheVersion,
+  buildPaginatedKey
+} from '../lib/redis.js';
 import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
-import { createSaleProcess, fetchSaleById, cancelSaleProcess, updateSaleProcess } from '../services/sale.service.js';
+import {
+  createSaleProcess,
+  fetchSaleById,
+  cancelSaleProcess,
+  updateSaleProcess
+} from '../services/sale.service.js';
+import { BranchId } from '../types/brands.js';
 
 // Venezuela = UTC-4. El backend corre en UTC (Vercel).
 // Sin esta corrección, setHours(0,0,0,0) pondría la medianoche en UTC,
@@ -14,8 +27,8 @@ const VE_OFFSET_MS = 4 * 60 * 60 * 1000;
  * del día `offsetDays` relativo a hoy en hora Venezuela.
  * offsetDays = 0 → hoy VE, -1 → ayer VE, -6 → hace 6 días VE, etc.
  */
-function dayRangeVE(offsetDays = 0) {
-  const nowVE = new Date(Date.now() - VE_OFFSET_MS); // hora actual en VE como si fuera UTC
+function dayRangeVE(offsetDays = 0): { start: Date; end: Date } {
+  const nowVE = new Date(Date.now() - VE_OFFSET_MS);
   const y = nowVE.getUTCFullYear();
   const m = nowVE.getUTCMonth();
   const d = nowVE.getUTCDate() + offsetDays;
@@ -25,14 +38,15 @@ function dayRangeVE(offsetDays = 0) {
 }
 
 
-export const createSale = async (req, res) => {
+export const createSale = async (req: Request, res: Response): Promise<void> => {
   try {
     const { items, payment_method, exchange_rate, branch_id } = req.body;
 
     // branchId: puede venir del body o del header X-Branch-Id (inyectado por middleware)
-    const branchId = branch_id || req.branchId;
+    const branchId = (branch_id || req.branchId) as BranchId | undefined;
     if (!branchId) {
-      return res.status(400).json({ success: false, message: 'branch_id es requerido para registrar una venta.' });
+      res.status(400).json({ success: false, message: 'branch_id es requerido para registrar una venta.' });
+      return;
     }
 
     // injectBusinessContext resolvió:
@@ -44,13 +58,13 @@ export const createSale = async (req, res) => {
     const sale = await createSaleProcess(ownerId, soldBy, branchId, items, payment_method, exchange_rate);
 
     // Invalidar caché paginada de ventas y productos
-    const keysToInvalidate = [];
+    const keysToInvalidate: string[] = [];
     for (const item of items) {
       keysToInvalidate.push(`product:${item.product_id}:${ownerId}`);
     }
     await Promise.all([
-      bumpCacheVersion('sales', ownerId),
-      bumpCacheVersion('products', ownerId),
+      bumpCacheVersion('sales', String(ownerId)),
+      bumpCacheVersion('products', String(ownerId)),
       keysToInvalidate.length > 0 ? invalidateCache(...keysToInvalidate) : Promise.resolve()
     ]);
 
@@ -60,7 +74,7 @@ export const createSale = async (req, res) => {
       sale
     });
 
-  } catch (error) {
+  } catch (error: any) {
     let status = 500;
     if (error.message.includes('Stock insuficiente')) status = 400;
     else if (error.message.includes('no encontrado')) status = 404;
@@ -68,24 +82,25 @@ export const createSale = async (req, res) => {
   }
 };
 
-export const getSales = async (req, res) => {
+export const getSales = async (req: Request, res: Response): Promise<void> => {
   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
     // Usar contexto inyectado por injectBusinessContext (evita consulta redundante a DB)
     const isEmployee = req.userRole === 'employee';
-    const ownerId = req.businessOwnerId; // Ya es el ID del dueño del negocio
+    const ownerId = req.businessOwnerId;
 
     // Empleado: ve solo SUS ventas (sold_by) dentro del scope del dueño
     // Dueño:    ve todas las ventas de su negocio + filtro opcional por vendedor
-    const sellerId = (!isEmployee && req.query.seller) ? req.query.seller : null;
-    const paymentMethod = isEmployee ? null : (req.query.paymentMethod || null);
+    const sellerId = (!isEmployee && req.query.seller) ? req.query.seller as string : null;
+    const paymentMethod = isEmployee ? null : ((req.query.paymentMethod as string) || null);
 
     // --- Resolver filtro de fechas ---
-    let { dateFrom, dateTo } = req.query;
-    let dateFilterParam = req.query.dateFilter; // today | 7days | 30days | month | custom | all
+    let dateFrom = req.query.dateFrom as string | null;
+    let dateTo = req.query.dateTo as string | null;
+    let dateFilterParam = req.query.dateFilter as string | undefined; // today | 7days | 30days | month | custom | all
 
     // Restricciones para el empleado: solo ventas del día de hoy
     if (isEmployee) {
@@ -93,7 +108,7 @@ export const getSales = async (req, res) => {
       dateFrom = null;
       dateTo = null;
     }
-    let dateFilter = null;
+    let dateFilter: Record<string, Date> | null = null;
 
     // Períodos rápidos → calcular rango en hora Venezuela (UTC-4)
     if (dateFilterParam && dateFilterParam !== 'all' && dateFilterParam !== 'custom') {
@@ -125,14 +140,14 @@ export const getSales = async (req, res) => {
 
       // Rango manual (custom) → usar dateFrom / dateTo
     } else if (dateFrom || dateTo) {
-      dateFilter = {};
+      dateFilter = {} as Record<string, Date>;
       if (dateFrom) {
         const from = new Date(dateFrom);
-        if (!isNaN(from)) dateFilter.$gte = from;
+        if (!isNaN(from.getTime())) dateFilter.$gte = from;
       }
       if (dateTo) {
         const to = new Date(dateTo);
-        if (!isNaN(to)) {
+        if (!isNaN(to.getTime())) {
           to.setHours(23, 59, 59, 999);
           dateFilter.$lte = to;
         }
@@ -140,7 +155,7 @@ export const getSales = async (req, res) => {
     }
 
     // Scope de caché separado por empleado para evitar cruzar datos entre usuarios
-    const cacheScope = isEmployee ? `${ownerId}:emp:${req.actorId}` : ownerId;
+    const cacheScope = isEmployee ? `${ownerId}:emp:${req.actorId}` : String(ownerId);
 
     const version = await getCacheVersion('sales', String(ownerId));
     // Incluir el rango de fechas en el cache key para que no colisionen rangos distintos
@@ -153,14 +168,15 @@ export const getSales = async (req, res) => {
       + dateSegment;
 
     const { data, fromCache } = await getOrSetCache(cacheKey, async () => {
-      let filter;
+      const filter: Record<string, unknown> = {};
 
       if (isEmployee) {
         // Empleado: ventas donde ÉL fue el vendedor dentro del negocio del dueño
-        filter = { customer_id: ownerId, sold_by: req.actorId };
+        filter.customer_id = ownerId;
+        filter.sold_by = req.actorId;
       } else {
         // Dueño: todas las ventas de su negocio, con filtro opcional por vendedor
-        filter = { customer_id: req.businessOwnerId };
+        filter.customer_id = req.businessOwnerId;
         if (sellerId) filter.sold_by = sellerId;
       }
 
@@ -173,9 +189,9 @@ export const getSales = async (req, res) => {
       }
 
       // Para el aggregation pipeline es estrictamente necesario que los IDs sean ObjectId
-      const aggFilter = { ...filter };
-      if (aggFilter.customer_id) aggFilter.customer_id = new mongoose.Types.ObjectId(aggFilter.customer_id);
-      if (aggFilter.sold_by) aggFilter.sold_by = new mongoose.Types.ObjectId(aggFilter.sold_by);
+      const aggFilter = { ...filter } as Record<string, unknown>;
+      if (aggFilter.customer_id) aggFilter.customer_id = new mongoose.Types.ObjectId(aggFilter.customer_id as string);
+      if (aggFilter.sold_by) aggFilter.sold_by = new mongoose.Types.ObjectId(aggFilter.sold_by as string);
 
       const [sales, total, totalAmountAgg] = await Promise.all([
         Sale.find(filter)
@@ -206,13 +222,13 @@ export const getSales = async (req, res) => {
       currentPage: data.currentPage,
       fromCache
     });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 
-export const getSaleById = async (req, res) => {
+export const getSaleById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -225,36 +241,38 @@ export const getSaleById = async (req, res) => {
     const lookupId = isEmployee ? req.actorId : req.businessOwnerId;
 
     const { data, fromCache } = await getOrSetCache(cacheKey, () =>
-      fetchSaleById(id, lookupId, isEmployee),
+      fetchSaleById(id as string, lookupId, isEmployee),
       300);
 
     if (!data) {
-      return res.status(404).json({ success: false, message: "Venta no encontrada" });
+      res.status(404).json({ success: false, message: "Venta no encontrada" });
+      return;
     }
 
     res.status(200).json({ success: true, sale: data, fromCache });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-export const cancelSale = async (req, res) => {
+export const cancelSale = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     
     // Restricción estricta: Los empleados no pueden anular ventas
     if (req.userRole === 'employee') {
-      return res.status(403).json({ success: false, message: 'Los empleados no tienen permisos para anular ventas.' });
+      res.status(403).json({ success: false, message: 'Los empleados no tienen permisos para anular ventas.' });
+      return;
     }
 
     const ownerId = req.businessOwnerId;
 
-    const cancelledSale = await cancelSaleProcess(id, ownerId);
+    const cancelledSale = await cancelSaleProcess(id as string, ownerId);
 
     // Invalidar caché (ventas, productos y la venta específica)
     await Promise.all([
-      bumpCacheVersion('sales', ownerId),
-      bumpCacheVersion('products', ownerId),
+      bumpCacheVersion('sales', String(ownerId)),
+      bumpCacheVersion('products', String(ownerId)),
       invalidateCache(`sale:${id}:${req.actorId}`)
     ]);
 
@@ -263,30 +281,31 @@ export const cancelSale = async (req, res) => {
       message: 'Venta anulada exitosamente y stock restaurado',
       sale: cancelledSale
     });
-  } catch (error) {
+  } catch (error: any) {
     res.status(error.message.includes('encontrada') ? 404 : 400).json({ success: false, message: error.message });
   }
 };
 
-export const updateSale = async (req, res) => {
+export const updateSale = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { items, payment_method } = req.body;
 
     // Solo dueños pueden editar
     if (req.userRole === 'employee') {
-      return res.status(403).json({ success: false, message: 'Los empleados no tienen permisos para editar ventas.' });
+      res.status(403).json({ success: false, message: 'Los empleados no tienen permisos para editar ventas.' });
+      return;
     }
 
     const ownerId = req.businessOwnerId;
 
     // El servicio transaccional maneja stock, SaleDetails y campos simples en una sola sesión ACID
-    const updatedSale = await updateSaleProcess(id, ownerId, { items, payment_method });
+    const updatedSale = await updateSaleProcess(id as string, ownerId, { items, payment_method });
 
     // Invalidar caché de ventas, productos (si hubo cambios de stock) y la venta individual
     await Promise.all([
-      bumpCacheVersion('sales', ownerId),
-      bumpCacheVersion('products', ownerId),
+      bumpCacheVersion('sales', String(ownerId)),
+      bumpCacheVersion('products', String(ownerId)),
       invalidateCache(`sale:${id}:${req.actorId}`)
     ]);
 
@@ -295,7 +314,7 @@ export const updateSale = async (req, res) => {
       message: 'Venta actualizada exitosamente',
       sale: updatedSale
     });
-  } catch (error) {
+  } catch (error: any) {
     let status = 500;
     if (error.message.includes('encontrada')) status = 404;
     else if (error.message.includes('insuficiente') || error.message.includes('anulada')) status = 400;

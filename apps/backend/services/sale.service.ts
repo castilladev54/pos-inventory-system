@@ -83,6 +83,7 @@ export const createSaleProcess = async (
         { 
           branch_id: branchId, 
           product_id: item.product_id, 
+          owner_id: businessOwnerId,
           stock: { $gte: item.quantity } 
         },
         { $inc: { stock: -item.quantity } },
@@ -102,7 +103,7 @@ export const createSaleProcess = async (
       sold_by: soldBy,
       branch_id: branchId,
       total_amount,
-      payment_method,
+      payment_method: (payment_method === 'Pago Móvil' ? 'Pago Movil' : payment_method) as any,
       exchange_rate,
       status: 'completed'
     });
@@ -219,7 +220,7 @@ export const updateSaleProcess = async (
       const originalDetails = await SaleDetail.find({ sale_id: saleId }).session(session);
       for (const detail of originalDetails) {
         await BranchInventory.findOneAndUpdate(
-          { branch_id: effectiveBranchId, product_id: detail.product_id },
+          { branch_id: effectiveBranchId, product_id: detail.product_id, owner_id: ownerId },
           { $inc: { stock: detail.quantity } },
           { session, upsert: true }
         );
@@ -244,6 +245,7 @@ export const updateSaleProcess = async (
           { 
             branch_id: effectiveBranchId, 
             product_id: item.product_id, 
+            owner_id: ownerId,
             stock: { $gte: item.quantity } 
           },
           { $inc: { stock: -item.quantity } },
@@ -272,7 +274,9 @@ export const updateSaleProcess = async (
       sale.total_amount = newTotal;
     }
 
-    if (payment_method !== undefined) sale.payment_method = payment_method;
+    if (payment_method !== undefined) {
+      sale.payment_method = (payment_method === 'Pago Móvil' ? 'Pago Movil' : payment_method) as any;
+    }
 
     await sale.save({ session });
     await session.commitTransaction();
@@ -322,7 +326,7 @@ export const cancelSaleProcess = async (
     // Restaurar stock en BranchInventory — filtro de tenant garantizado por la verificación previa
     for (const detail of details) {
       await BranchInventory.findOneAndUpdate(
-        { branch_id: effectiveBranchId, product_id: detail.product_id },
+        { branch_id: effectiveBranchId, product_id: detail.product_id, owner_id: ownerId },
         { $inc: { stock: detail.quantity } },
         { session, upsert: true }
       );
