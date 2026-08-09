@@ -6,6 +6,11 @@ const inventoryAdjustmentSchema = new mongoose.Schema({
     ref: 'Product',
     required: true
   },
+  branch_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Branch',
+    required: true
+  },
   user_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -41,6 +46,8 @@ const inventoryAdjustmentSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+// Índice compuesto optimizado para auditorías por sucursal
+inventoryAdjustmentSchema.index({ branch_id: 1, createdAt: -1 });
 // Índice para agilizar las búsquedas por usuario
 inventoryAdjustmentSchema.index({ user_id: 1, createdAt: -1 });
 

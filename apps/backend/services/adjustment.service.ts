@@ -58,26 +58,32 @@ export const createAdjustmentProcess = async (
     // 2. Leer el stock actual de la sucursal
     const inventoryItem = await BranchInventory.findOne({
       product_id,
-      branch_id: branchId
+      branch_id: branchId,
+      owner_id: businessOwnerId
     }).session(session);
 
-    const previous_stock = inventoryItem?.stock ?? 0;
+    if (!inventoryItem) {
+      throw new Error('El producto no está registrado en el inventario de esta sucursal.');
+    }
+
+    const previous_stock = inventoryItem.stock ?? 0;
     const difference = new_stock - previous_stock;
 
     if (difference === 0) {
       throw new Error('El nuevo stock es igual al stock actual. No hay nada que ajustar.');
     }
 
-    // 3. Aplicar el ajuste en BranchInventory (upsert: crea el registro si no existe aún)
+    // 3. Aplicar el ajuste en BranchInventory
     await BranchInventory.findOneAndUpdate(
-      { product_id, branch_id: branchId },
+      { product_id, branch_id: branchId, owner_id: businessOwnerId },
       { $set: { stock: new_stock } },
-      { upsert: true, session }
+      { session }
     );
 
     // 4. Registrar en el Kardex (InventoryAdjustment) — fuente de verdad para auditoría
     const adjustment = new InventoryAdjustment({
       product_id,
+      branch_id: branchId,
       user_id: businessOwnerId,
       created_by: actorId,
       previous_stock,
