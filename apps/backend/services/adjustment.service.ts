@@ -4,6 +4,7 @@ import { Product } from '../models/Product.js';
 import { BranchInventory } from '../models/BranchInventory.js';
 import { Branch } from '../models/Branch.js';
 import { BusinessOwnerId, ActorId, ProductId, BranchId } from '../types/brands.js';
+import { bumpBranchCacheVersion } from '../lib/redis.js';
 
 // ─── Crear Ajuste ─────────────────────────────────────────────────────────────
 
@@ -98,6 +99,7 @@ export const createAdjustmentProcess = async (
     if (ownSession) {
       await session.commitTransaction();
       session.endSession();
+      await bumpBranchCacheVersion('products', String(businessOwnerId), String(branchId));
     }
 
     return adjustment;

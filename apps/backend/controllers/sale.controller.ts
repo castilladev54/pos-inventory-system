@@ -64,7 +64,6 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     }
     await Promise.all([
       bumpCacheVersion('sales', String(ownerId)),
-      bumpCacheVersion('products', String(ownerId)),
       keysToInvalidate.length > 0 ? invalidateCache(...keysToInvalidate) : Promise.resolve()
     ]);
 
@@ -272,7 +271,6 @@ export const cancelSale = async (req: Request, res: Response): Promise<void> => 
     // Invalidar caché (ventas, productos y la venta específica)
     await Promise.all([
       bumpCacheVersion('sales', String(ownerId)),
-      bumpCacheVersion('products', String(ownerId)),
       invalidateCache(`sale:${id}:${req.actorId}`)
     ]);
 
@@ -305,7 +303,6 @@ export const updateSale = async (req: Request, res: Response): Promise<void> => 
     // Invalidar caché de ventas, productos (si hubo cambios de stock) y la venta individual
     await Promise.all([
       bumpCacheVersion('sales', String(ownerId)),
-      bumpCacheVersion('products', String(ownerId)),
       invalidateCache(`sale:${id}:${req.actorId}`)
     ]);
 

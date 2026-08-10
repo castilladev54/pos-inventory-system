@@ -1,10 +1,11 @@
 import mongoose from 'mongoose';
+import { Request, Response } from 'express';
 import { Product } from '../models/Product.js';
 import { Category } from '../models/Category.js';
-import { invalidateCache, getOrSetCache, getCacheVersion, bumpCacheVersion, buildPaginatedKey } from '../lib/redis.js';
+import { invalidateCache, getOrSetCache, getCacheVersion, bumpCacheVersion, buildPaginatedKey, getBranchCacheVersion } from '../lib/redis.js';
 import { createAdjustmentProcess } from '../services/adjustment.service.js';
 
-export const createProduct = async (req, res) => {
+export const createProduct = async (req: any, res: any) => {
   // stock_inicial es opcional. Si el usuario lo provee, se registra en el Kardex
   // atómicamente junto con la creación del producto (transacción ACID) en una sucursal específica.
   const { name, description, price, category, unit_type, barcode, stock_inicial, branch_id } = req.body;
@@ -43,7 +44,7 @@ export const createProduct = async (req, res) => {
       await product.save();
       await bumpCacheVersion('products', req.businessOwnerId);
       return res.status(201).json({ success: true, product });
-    } catch (error) {
+    } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message });
     }
   }
@@ -75,7 +76,7 @@ export const createProduct = async (req, res) => {
       req.actorId,
       req.businessOwnerId,
       branchId,
-      product._id,
+      product._id as any,
       initialStock,
       'initial_count',
       'Stock de apertura al crear el producto',
@@ -96,65 +97,129 @@ export const createProduct = async (req, res) => {
       message: `Producto creado con stock inicial de ${initialStock} en la sucursal especificada.`
     });
 
-  } catch (error) {
+  } catch (error: any) {
     if (session.inTransaction()) await session.abortTransaction();
     session.endSession();
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-
-export const getProducts = async (req, res) => {
+export const getProducts = async (req: Request | any, res: Response | any): Promise<void> => {
   try {
-    // ─── Parámetros de paginación con defaults seguros ────────────────
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    // Subimos el cap a 5000 para soportar fetchAllForPOS (carga masiva del POS)
-    const limit = Math.min(5000, Math.max(1, parseInt(req.query.limit) || 20));
+    const ownerId = req.businessOwnerId;
+    const branchId = req.branchId;
+
+    // 1. Extracción y sanitización de paginación
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(5000, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    // ─── CORRECCIÓN A: Normalización antes de todo ───────────────────
-    // trim() + toLowerCase() garantiza que "Harina ", "HARINA" y "harina"
-    // comparten el mismo slot de caché (o el mismo bypass de corto).
-    const normalizedSearch = (req.query.search || "").trim().toLowerCase();
-
-    // ─── CORRECCIÓN B: Bypass de caché para búsquedas cortas ─────────
-    // 1–2 caracteres generan demasiadas claves efímeras ("h", "ha", …).
-    // Para esos casos vamos directo a MongoDB sin tocar Redis.
+    // Normalización de búsqueda
+    const normalizedSearch = (req.query.search as string || "").trim().toLowerCase();
     const useCache = normalizedSearch.length === 0 || normalizedSearch.length >= 3;
-
-    // ─── CORRECCIÓN C: TTL diferenciado ──────────────────────────────
-    // Búsquedas son volátiles → 30 s. Listados sin búsqueda → 5 min.
     const ttl = normalizedSearch.length >= 3 ? 30 : 300;
 
-    // ─── Cache key versionada ─────────────────────────────────────────
-    const version = useCache ? await getCacheVersion('products', req.businessOwnerId) : null;
+    // 2. Validación estricta de ordenación (Whitelist)
+    const allowedSortFields = ['createdAt', 'name', 'price', 'stock'];
+    const sortBy = allowedSortFields.includes(req.query.sortBy as string) 
+      ? (req.query.sortBy as string) 
+      : 'createdAt';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+
+    // 3. Llave de caché determinista con versión de sucursal (Lectura pasiva)
+    const version = useCache ? await getBranchCacheVersion('products', ownerId, branchId) : null;
     const searchSlug = normalizedSearch
       ? `:s${Buffer.from(normalizedSearch).toString("base64url")}`
       : "";
     const cacheKey = useCache
-      ? buildPaginatedKey('products', version, page, limit, req.businessOwnerId) + searchSlug
+      ? `products:v${version}:${ownerId}:${branchId}:p${page}:l${limit}${searchSlug}:sort:${sortBy}:${sortOrder}`
       : null;
 
-    // ─── Función de consulta compartida (usada con o sin caché) ──────
+    // Función de base de datos
     const fetchFromDB = async () => {
-      const filter = { user: req.businessOwnerId };
-
+      // Construcción del Match inicial
+      const matchStage: any = { user: new mongoose.Types.ObjectId(ownerId) };
       if (normalizedSearch) {
-        // La regex ya corre sobre texto normalizado; "i" es redundante pero
-        // inofensivo y cubre diferencias de acento en algunos drivers.
         const regex = new RegExp(normalizedSearch, "i");
-        filter.$or = [{ name: regex }, { barcode: regex }];
+        matchStage.$or = [
+          { name: regex },
+          { barcode: regex }
+        ];
       }
 
-      const [products, total] = await Promise.all([
-        Product.find(filter)
-          .populate('category', 'name')
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        Product.countDocuments(filter)
+      // Aggregation Pipeline
+      const [result] = await Product.aggregate([
+        { $match: matchStage },
+        
+        // Cruce aislado del inventario por sucursal
+        {
+          $lookup: {
+            from: 'branchinventories',
+            let: { productId: '$_id', activeBranchId: new mongoose.Types.ObjectId(branchId) },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$product_id', '$$productId'] },
+                      { $eq: ['$branch_id', '$$activeBranchId'] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: 'inventoryData'
+          }
+        },
+        {
+          $unwind: {
+            path: '$inventoryData',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        // Aplanamiento del stock determinista
+        {
+          $addFields: {
+            stock: { $ifNull: ['$inventoryData.stock', 0] }
+          }
+        },
+        
+        // Cruce y proyección estricta de la categoría
+        {
+          $lookup: {
+            from: 'categories',
+            localField: 'category',
+            foreignField: '_id',
+            pipeline: [
+              { $project: { _id: 1, name: 1 } }
+            ],
+            as: 'category'
+          }
+        },
+        {
+          $unwind: {
+            path: '$category',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+
+        // Limpieza de datos intermedios
+        { $project: { inventoryData: 0 } },
+
+        // Ordenación dinámica segura
+        { $sort: { [sortBy]: sortOrder } },
+
+        // Facet para conteo y paginación paralela
+        {
+          $facet: {
+            metadata: [{ $count: 'total' }],
+            data: [{ $skip: skip }, { $limit: limit }]
+          }
+        }
       ]);
+
+      const total = result?.metadata[0]?.total || 0;
+      const products = result?.data || [];
 
       return {
         products,
@@ -164,17 +229,15 @@ export const getProducts = async (req, res) => {
       };
     };
 
-    // ─── Decidir si ir a Redis o directo a MongoDB ────────────────────
+    // Cache logic
     let data, fromCache;
-    if (useCache) {
+    if (useCache && cacheKey) {
       ({ data, fromCache } = await getOrSetCache(cacheKey, fetchFromDB, ttl));
     } else {
-      // Búsqueda de 1–2 chars: sin Redis, sin drama.
       data = await fetchFromDB();
       fromCache = false;
     }
 
-    // Protección: si la página pedida no existe, devolver vacío sin error
     if (data.currentPage > data.totalPages && data.totalPages > 0) {
       return res.status(200).json({
         success: true,
@@ -194,12 +257,12 @@ export const getProducts = async (req, res) => {
       currentPage: data.currentPage,
       fromCache
     });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-export const getProductById = async (req, res) => {
+export const getProductById = async (req: any, res: any) => {
   try {
     const { id } = req.params;
     const cacheKey = `product:${id}:${req.businessOwnerId}`;

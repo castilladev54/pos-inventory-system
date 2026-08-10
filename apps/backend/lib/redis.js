@@ -120,3 +120,52 @@ export const bumpCacheVersion = async (prefix, userId) => {
 export const buildPaginatedKey = (prefix, version, page, limit, userId) => {
   return `${prefix}:v${version}:p${page}:l${limit}:${userId}`;
 };
+
+/**
+ * Recupera la versión de caché de la sucursal de forma pasiva (O(1)).
+ * Nunca escribe en la base de datos para evitar race conditions.
+ * @param {string} prefix - Prefijo base (ej: "products")
+ * @param {string} ownerId - ID del inquilino
+ * @param {string} branchId - ID de la sucursal
+ * @returns {Promise<number>}
+ */
+export const getBranchCacheVersion = async (prefix, ownerId, branchId) => {
+  try {
+    const key = `v:${prefix}:${ownerId}:${branchId}`;
+    const version = await redis.get(key);
+    return version ? parseInt(version, 10) : 1;
+  } catch (error) {
+    getCurrentLogger().error({ error, ownerId, branchId }, 'Fallo al leer versión de Redis. Retornando fallback.');
+    return 1; // Fallback tolerante a fallos de caché
+  }
+};
+
+/**
+ * Invalida la caché de una sucursal incrementando su versión (O(1)).
+ * Implementa retry con backoff para absorber microcortes de red transitorios.
+ * @param {string} prefix - Prefijo base
+ * @param {string} ownerId - ID del inquilino
+ * @param {string} branchId - ID de la sucursal
+ * @returns {Promise<void>}
+ */
+export const bumpBranchCacheVersion = async (prefix, ownerId, branchId) => {
+  const key = `v:${prefix}:${ownerId}:${branchId}`;
+  
+  const tryIncr = async (attempt = 1) => {
+    try {
+      await redis.incr(key);
+    } catch (error) {
+      if (attempt === 1) {
+        await new Promise(res => setTimeout(res, 100));
+        return tryIncr(2);
+      } else if (attempt === 2) {
+        await new Promise(res => setTimeout(res, 500));
+        return tryIncr(3);
+      } else {
+        getCurrentLogger().error({ error, ownerId, branchId }, 'Fallo definitivo al invalidar caché en Redis tras reintentos.');
+      }
+    }
+  };
+  
+  await tryIncr();
+};

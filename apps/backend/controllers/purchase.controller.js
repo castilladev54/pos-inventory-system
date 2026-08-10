@@ -19,7 +19,6 @@ export const createPurchase = async (req, res) => {
     }
     await Promise.all([
       bumpCacheVersion('purchases', req.businessOwnerId),
-      bumpCacheVersion('products', req.businessOwnerId),
       individualKeysToInvalidate.length > 0
         ? invalidateCache(...individualKeysToInvalidate)
         : Promise.resolve()

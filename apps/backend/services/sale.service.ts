@@ -6,7 +6,7 @@ import { BranchInventory } from '../models/BranchInventory.js';
 import { Branch } from '../models/Branch.js';
 import { BusinessOwnerId, ActorId, ProductId, BranchId } from '../types/brands.js';
 import type { PaymentMethod } from '@inventory/shared';
-
+import { bumpBranchCacheVersion } from '../lib/redis.js';
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 
 export interface SaleItemInput {
@@ -122,6 +122,8 @@ export const createSaleProcess = async (
 
     await session.commitTransaction();
     session.endSession();
+
+    await bumpBranchCacheVersion('products', String(ownerId), String(branchId));
 
     return sale;
   } catch (error) {
@@ -282,6 +284,8 @@ export const updateSaleProcess = async (
     await session.commitTransaction();
     session.endSession();
 
+    await bumpBranchCacheVersion('products', String(ownerId), String(effectiveBranchId));
+
     return sale;
   } catch (error) {
     await session.abortTransaction();
@@ -338,6 +342,8 @@ export const cancelSaleProcess = async (
 
     await session.commitTransaction();
     session.endSession();
+
+    await bumpBranchCacheVersion('products', String(ownerId), String(effectiveBranchId));
 
     return sale;
   } catch (error) {

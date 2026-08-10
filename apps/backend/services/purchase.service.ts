@@ -6,6 +6,7 @@ import { BranchInventory } from '../models/BranchInventory.js';
 import { SupplierPayment } from '../models/SupplierPayment.js';
 import { Branch } from '../models/Branch.js';
 import { BusinessOwnerId, ProductId, BranchId } from '../types/brands.js';
+import { bumpBranchCacheVersion } from '../lib/redis.js';
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,9 @@ export const createPurchaseProcess = async (
 
     await session.commitTransaction();
     session.endSession();
+    
+    await bumpBranchCacheVersion('products', String(businessOwnerId), String(branchId));
+    
     return purchase;
   } catch (error) {
     await session.abortTransaction();

@@ -29,7 +29,6 @@ export const createAdjustment = async (req, res) => {
     // Invalidar caché versionada de ajustes y productos
     await Promise.all([
       bumpCacheVersion('adjustments', req.businessOwnerId),
-      bumpCacheVersion('products',   req.businessOwnerId),
       invalidateCache(`product:${product_id}:${req.businessOwnerId}`)
     ]);
 
