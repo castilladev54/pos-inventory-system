@@ -8,6 +8,7 @@ import {
   useAllCategoriesQuery,
 } from '../hooks/queries';
 import { useCurrencyStore } from '../store/currencyStore';
+import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import type { Product, ProductId } from '@inventory/shared';
 
@@ -133,6 +134,7 @@ const ProductManager = () => {
   const { data, isLoading, error } = useProductsQuery(currentPage, ITEMS_PER_PAGE, debouncedSearch);
   const { data: categories = [] } = useAllCategoriesQuery();
   const { toBs } = useCurrencyStore();
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
 
   // Mutations
   const createMutation = useCreateProduct();
@@ -184,6 +186,11 @@ const ProductManager = () => {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
+    if (!activeBranchId) {
+      toast.error('Debes seleccionar una sucursal activa para modificar el inventario');
+      return;
+    }
+
     const isStockChanged = editingId && Number(formData.new_stock) !== Number(formData.stock);
 
     if (isStockChanged && !formData.stock_reason) {
@@ -198,11 +205,12 @@ const ProductManager = () => {
       category: formData.category,
       unit_type: formData.unit_type,
       barcode: formData.barcode || undefined,
+      branch_id: activeBranchId,
     };
 
     if (editingId) {
       if (isStockChanged) {
-        payload.initialStock = Number(formData.new_stock); // El backend espera initialStock o similar
+        payload.new_stock = Number(formData.new_stock);
         // Agregamos metadata de ajuste de stock si se requiere
         payload.stock_reason = formData.stock_reason;
       }
@@ -219,7 +227,7 @@ const ProductManager = () => {
         }
       );
     } else {
-      payload.initialStock = Number(formData.stock);
+      payload.stock_inicial = Number(formData.stock);
       toast.promise(
         createMutation.mutateAsync(payload),
         {

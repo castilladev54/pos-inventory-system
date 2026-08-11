@@ -50,11 +50,11 @@ export const createProduct = async (req: any, res: any) => {
   }
 
   // Si hay stock inicial, la sucursal es obligatoria
-  const branchId = branch_id || req.branchId;
+  const branchId = req.branchId;
   if (!branchId) {
     return res.status(400).json({
       success: false,
-      message: "branch_id es requerido para establecer un stock inicial."
+      message: "Contexto de sucursal no válido o no autorizado (branch_id es requerido)."
     });
   }
 
@@ -371,11 +371,11 @@ export const updateProduct = async (req, res) => {
     }
 
     // Si hay corrección de stock, la sucursal es obligatoria
-    const branchId = branch_id || req.branchId;
+    const branchId = req.branchId;
     if (!branchId) {
       return res.status(400).json({
         success: false,
-        message: "branch_id es requerido para realizar un ajuste de stock."
+        message: "Contexto de sucursal no válido o no autorizado para realizar un ajuste de stock."
       });
     }
 
