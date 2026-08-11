@@ -69,7 +69,7 @@ export const fetchBranches = async (
   ownerId: BusinessOwnerId,
   actor: { role: string; assignedBranches: string[] }
 ) => {
-  const query: mongoose.FilterQuery<IBranch> = { owner_id: ownerId };
+  const query: Record<string, any> = { owner_id: ownerId };
 
   if (actor.role === 'employee') {
     query._id = { $in: actor.assignedBranches };

@@ -1,4 +1,4 @@
-import { User, type IUser } from "../models/User.js";
+import { User, ROLES, type IUser } from "../models/User.js";
 import { Category } from "../models/Category.js";
 import { Product } from "../models/Product.js";
 import { Purchase } from "../models/Purchase.js";
@@ -57,7 +57,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       email,
       password: hashedPassword,
       name,
-      role: role ?? 'customer',
+      role: role ?? ROLES.TENANT_OWNER,
       subscriptionExpiresAt: expireDate
     });
 

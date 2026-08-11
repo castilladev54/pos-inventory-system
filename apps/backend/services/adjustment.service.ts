@@ -56,29 +56,30 @@ export const createAdjustmentProcess = async (
       throw new Error('Producto no encontrado o no te pertenece');
     }
 
-    // 2. Leer el stock actual de la sucursal
+    // 2. Leer el stock actual de la sucursal (puede no existir → Lazy Creation)
     const inventoryItem = await BranchInventory.findOne({
       product_id,
       branch_id: branchId,
       owner_id: businessOwnerId
     }).session(session);
 
-    if (!inventoryItem) {
-      throw new Error('El producto no está registrado en el inventario de esta sucursal.');
-    }
-
-    const previous_stock = inventoryItem.stock ?? 0;
+    // Coherencia Lectura/Escritura: el pipeline de lectura (getProducts) resuelve
+    // la ausencia de documento como stock = 0 mediante $ifNull. La escritura debe
+    // honrar el mismo contrato en lugar de lanzar un error 404.
+    const previous_stock = inventoryItem?.stock ?? 0;
     const difference = new_stock - previous_stock;
 
     if (difference === 0) {
       throw new Error('El nuevo stock es igual al stock actual. No hay nada que ajustar.');
     }
 
-    // 3. Aplicar el ajuste en BranchInventory
+    // 3. Aplicar el ajuste en BranchInventory (Upsert Atómico)
+    // Si el documento no existía, se crea con el stock inicial dentro de la misma
+    // transacción ACID, previniendo race conditions y garantizando atomicidad.
     await BranchInventory.findOneAndUpdate(
       { product_id, branch_id: branchId, owner_id: businessOwnerId },
       { $set: { stock: new_stock } },
-      { session }
+      { upsert: true, new: true, session, runValidators: true }
     );
 
     // 4. Registrar en el Kardex (InventoryAdjustment) — fuente de verdad para auditoría

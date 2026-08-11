@@ -1,11 +1,22 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
+// ─── ROLES: Fuente de Verdad Única (Single Source of Truth) ─────────────────
+// Compartida entre TypeScript (tipo derivado) y Mongoose (enum del schema).
+// Jamás duplicar estas cadenas en otro archivo.
+export const ROLES = {
+  ADMIN: 'admin',
+  TENANT_OWNER: 'TENANT_OWNER',
+  EMPLOYEE: 'employee',
+} as const;
+
+export type Role = typeof ROLES[keyof typeof ROLES];
+
 // 1. Interfaz que define la estructura del documento en TS
 export interface IUser extends Document {
   email: string;
   password: string;
   name: string;
-  role: 'admin' | 'customer' | 'employee';
+  role: Role;
   owner_id?: Types.ObjectId | null;
   permissions: string[];
   assigned_branches: Types.ObjectId[];
@@ -36,9 +47,9 @@ const userSchema = new Schema<IUser>({
   },
   role: {
     type: String,
-    enum: ['admin', 'customer', 'employee'],
+    enum: Object.values(ROLES),
     required: true,
-    default: 'customer'
+    default: ROLES.TENANT_OWNER
   },
   owner_id: {
     type: Schema.Types.ObjectId,

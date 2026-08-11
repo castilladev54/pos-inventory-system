@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { createHash, timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import mongoose from 'mongoose';
-import { User } from '../models/User.js';
+import { User, ROLES } from '../models/User.js';
 import { ExchangeRate } from '../models/ExchangeRate.js';
 import { redis } from '../lib/redis.js';
 import { getCurrentLogger } from '../lib/logger.js';
@@ -108,7 +108,7 @@ export const syncBcvRate = async (req: Request, res: Response): Promise<void> =>
     }
 
     // ── [DB] Obtener tenants activos ─────────────────────────────────────────
-    const tenants = await User.find({ role: { $in: ['admin', 'customer'] } })
+    const tenants = await User.find({ role: { $in: [ROLES.ADMIN, ROLES.TENANT_OWNER] } })
       .select('_id')
       .lean();
 

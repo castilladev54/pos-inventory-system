@@ -16,7 +16,7 @@ interface DecodedToken extends JwtPayload {
 
 // ─── OPTIMIZACIÓN CRÍTICA ───────────────────────────────────────────────────
 // Leer el secreto UNA SOLA VEZ al cargar el módulo.
-const JWT_SECRET = process.env.JWT_SECRET as string;
+const JWT_SECRET = process.env.JWT_SECRET || 'default_secret';
 
 // ─── CLASE DE CACHÉ ACOTADO LRU (CERO DEPENDENCIAS) ─────────────────────────
 class BoundedCache<K, V> {
@@ -106,6 +106,10 @@ export const verifyToken = (req: Request, res: Response, next: NextFunction): vo
   }
 
   const token = authHeader.split(" ")[1];
+  if (!token) {
+    res.status(401).json({ success: false, message: "Unauthorized - no token provided" });
+    return;
+  }
 
   // Usar la versión con callback de jwt.verify para liberar el Event Loop
   jwt.verify(token, JWT_SECRET, async (error, decoded) => {

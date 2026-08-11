@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { redis } from '../lib/redis.js';
 import { Branch } from '../models/Branch.js';
 import { createAdjustmentProcess } from '../services/adjustment.service.js';
 import {
@@ -95,6 +96,14 @@ export const createBranch = async (req: Request, res: Response): Promise<void> =
     });
 
     await branch.save();
+
+    // Invalidate Redis Zero-Trust Gateway cache
+    try {
+      await redis.del(`tenant:branches:${req.businessOwnerId}`);
+    } catch (redisError) {
+      // Ignorar error de redis, el TTL eventualmente limpiará el caché viejo
+    }
+
     res.status(201).json({ success: true, data: branch });
   } catch (error) {
     handleServiceError(error, res);
@@ -150,6 +159,13 @@ export const deleteBranch = async (req: Request, res: Response): Promise<void> =
     if (!branch) {
       res.status(404).json({ success: false, message: 'Sucursal no encontrada.' });
       return;
+    }
+
+    // Invalidate Redis Zero-Trust Gateway cache
+    try {
+      await redis.del(`tenant:branches:${req.businessOwnerId}`);
+    } catch (redisError) {
+      // Ignorar error de redis
     }
 
     res.status(200).json({ success: true, message: 'Sucursal desactivada exitosamente.', data: branch });

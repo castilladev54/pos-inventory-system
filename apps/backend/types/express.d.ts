@@ -1,4 +1,5 @@
 import { BusinessOwnerId, ActorId, BranchId } from './brands';
+import { Role } from '../models/User';
 
 declare global {
   namespace Express {
@@ -26,7 +27,7 @@ declare global {
 
       // Campos auxiliares de contexto
       realUserId?: string;               // ID real del usuario autenticado
-      userRole?: string;                 // 'customer' | 'employee' | 'admin'
+      userRole?: Role;                   // Tipado estricto derivado de ROLES
       userPermissions?: string[];        // Permisos granulares del actor
     }
   }

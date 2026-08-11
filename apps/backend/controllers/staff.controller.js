@@ -1,4 +1,4 @@
-import { User } from '../models/User.js';
+import { User, ROLES } from '../models/User.js';
 import { Sale } from '../models/Sale.js';
 import { redis } from '../lib/redis.js';
 import bcryptjs from 'bcryptjs';
@@ -24,7 +24,7 @@ export const createEmployee = async (req, res) => {
     const { email, password, name, permissions, assigned_branches } = req.body;
 
     // req.userRole ya fue resuelto por injectBusinessContext — sin DB query extra
-    if (req.userRole !== 'customer' && req.userRole !== 'admin') {
+    if (req.userRole !== ROLES.TENANT_OWNER && req.userRole !== ROLES.ADMIN) {
       return res.status(403).json({ success: false, message: "Solo los dueños de negocio pueden crear empleados." });
     }
 

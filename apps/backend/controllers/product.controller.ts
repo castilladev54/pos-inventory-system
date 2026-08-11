@@ -71,6 +71,10 @@ export const createProduct = async (req: any, res: any) => {
       user: req.businessOwnerId
     }], { session });
 
+    if (!product) {
+      throw new Error("Failed to create product");
+    }
+
     // 2. Registrar apertura de inventario en el Kardex y BranchInventory (comparte la sesión)
     await createAdjustmentProcess(
       req.actorId,

@@ -123,7 +123,7 @@ export const createSaleProcess = async (
     await session.commitTransaction();
     session.endSession();
 
-    await bumpBranchCacheVersion('products', String(ownerId), String(branchId));
+    await bumpBranchCacheVersion('products', String(businessOwnerId), String(branchId));
 
     return sale;
   } catch (error) {
