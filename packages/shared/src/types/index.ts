@@ -200,7 +200,9 @@ export type AdjustmentReason =
   | 'merma'
   | 'robo'
   | 'vencimiento'
-  | 'correccion';
+  | 'correccion'
+  | 'transfer_in'
+  | 'transfer_out';
 
 /** Razones de ajuste usadas en validaciones Zod del backend */
 export type AdjustmentReasonBackend =
@@ -209,7 +211,9 @@ export type AdjustmentReasonBackend =
   | 'stolen'
   | 'expired'
   | 'correction'
-  | 'other';
+  | 'other'
+  | 'transfer_in'
+  | 'transfer_out';
 
 export interface InventoryAdjustment {
   _id: InventoryAdjustmentId;
@@ -341,6 +345,8 @@ export const ADJUSTMENT_REASONS_BACKEND = [
   'expired',
   'correction',
   'other',
+  'transfer_in',
+  'transfer_out',
 ] as const;
 
 export const STOCK_CORRECTION_REASONS = [

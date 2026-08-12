@@ -206,3 +206,19 @@ export const requirePermission = (requiredPermission: string) => {
   };
 };
 
+/**
+ * Middleware de rol estricto para acceso a endpoints administrativos
+ */
+export const requireRole = (allowedRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!allowedRoles.includes(req.userRole)) {
+      res.status(403).json({
+        success: false,
+        message: `Acceso denegado. Se requiere uno de los roles: ${allowedRoles.join(', ')}.`
+      });
+      return;
+    }
+    next();
+  };
+};
+

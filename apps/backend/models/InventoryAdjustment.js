@@ -36,7 +36,7 @@ const inventoryAdjustmentSchema = new mongoose.Schema({
   },
   reason: {
     type: String,
-    enum: ['initial_count', 'damaged', 'stolen', 'expired', 'correction', 'other'],
+    enum: ['initial_count', 'damaged', 'stolen', 'expired', 'correction', 'other', 'transfer_in', 'transfer_out'],
     required: true
   },
   notes: {

@@ -8,7 +8,7 @@ import {
   getBranchInventory,
   upsertBranchInventory
 } from '../controllers/branch.controller.js';
-import { requirePermission } from '../middleware/requirePermission.js';
+import { requirePermission, requireRole } from '../middleware/requirePermission.js';
 
 const router = Router();
 
@@ -18,12 +18,12 @@ const router = Router();
 
 router.get('/', getBranches);
 router.get('/:id', requirePermission('view_branches'), getBranchById);
-router.post('/', createBranch);           // Solo TENANT_OWNER/admin (RBAC)
-router.patch('/:id', updateBranch);       // Solo TENANT_OWNER/admin (RBAC)
-router.delete('/:id', deleteBranch);      // Soft-delete — Solo TENANT_OWNER/admin (RBAC)
+router.post('/', requireRole(['TENANT_OWNER', 'admin']), createBranch);           // Solo TENANT_OWNER/admin (RBAC)
+router.patch('/:id', requireRole(['TENANT_OWNER', 'admin']), updateBranch);       // Solo TENANT_OWNER/admin (RBAC)
+router.delete('/:id', requireRole(['TENANT_OWNER', 'admin']), deleteBranch);      // Soft-delete — Solo TENANT_OWNER/admin (RBAC)
 
 // ─── Inventario por Sucursal ────────────────────────────────────────────────
 router.get('/:id/inventory', requirePermission('view_branches'), getBranchInventory);
-router.patch('/:id/inventory', upsertBranchInventory); // Solo TENANT_OWNER/admin (RBAC)
+router.patch('/:id/inventory', requireRole(['TENANT_OWNER', 'admin']), upsertBranchInventory); // Solo TENANT_OWNER/admin (RBAC)
 
 export default router;
