@@ -160,6 +160,11 @@ api.interceptors.response.use(
         onUnauthorizedCb?.();
       }
 
+      if (errorMessage.toLowerCase().includes('session invalidated')) {
+        useAuthStore.getState().actions.clearAuth();
+        onUnauthorizedCb?.();
+      }
+
       // Lock de Suscripción Expirada (Bloqueo global del backend)
       if (errorMessage.toLowerCase().includes('suscripción')) {
         useAuthStore.getState().actions.setSubscriptionExpired(true);

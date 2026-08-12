@@ -11,7 +11,7 @@ import type { BranchId } from '@inventory/shared';
  * BranchSelector — Selector global de sucursal activa.
  *
  * Se renderiza en la barra superior del Dashboard cuando el usuario tiene
- * acceso a más de una sucursal (allowedBranches.length > 1) o es dueño (customer).
+ * acceso a más de una sucursal (allowedBranches.length > 1) o es dueño (TENANT_OWNER).
  *
  * Al cambiar la sucursal activa:
  *  1. Invoca authStore.setActiveBranch(branchId)   — dispara evento 'branch-changed'
@@ -47,8 +47,8 @@ const BranchSelector: React.FC = () => {
     return () => document.removeEventListener('keydown', handleEsc);
   }, []);
 
-  // No renderizar si solo hay una sucursal y NO es customer (dueño)
-  const isCustomer = user?.role === 'customer';
+  // No renderizar si solo hay una sucursal y NO es TENANT_OWNER (dueño)
+  const isCustomer = user?.role === 'TENANT_OWNER';
   if (branches.length <= 1 && !isCustomer) return null;
 
   const activeBranch = branches.find((b) => b._id === activeBranchId);

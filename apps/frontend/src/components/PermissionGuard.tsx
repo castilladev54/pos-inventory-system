@@ -13,8 +13,8 @@ const PermissionGuard = ({ requiredPermission, children, fallback = null }: Perm
 
   if (!user) return fallback;
 
-  // Dueños (customer) y Admins (admin) tienen acceso total e ilimitado a todo
-  if (user.role === 'customer' || user.role === 'admin') {
+  // Dueños (TENANT_OWNER) y Admins (admin) tienen acceso total e ilimitado a todo
+  if (user.role === 'TENANT_OWNER' || user.role === 'admin') {
     return children;
   }
 

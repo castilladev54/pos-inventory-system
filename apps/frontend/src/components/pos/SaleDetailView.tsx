@@ -46,7 +46,7 @@ const SaleDetailView = ({
         </Button>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
           <p className="text-sm text-gray-400">ID: {sale._id}</p>
-          {userRole === "customer" && sale.status !== "cancelled" && sale.status !== "Anulada" && (
+          {userRole === "TENANT_OWNER" && sale.status !== "cancelled" && sale.status !== "Anulada" && (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"

@@ -28,7 +28,7 @@ export const createUserBodySchema = z.object({
   email: z.string().email('Invalid email format').min(1, 'Email is required'),
   password: z.string().min(6, 'Password must be at least 6 characters long'),
   name: z.string().min(1, 'Name is required'),
-  role: z.enum(['admin', 'customer']).optional(),
+  role: z.enum(['admin', 'TENANT_OWNER']).optional(),
 });
 export type CreateUserDTO = z.infer<typeof createUserBodySchema>;
 

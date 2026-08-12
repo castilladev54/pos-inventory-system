@@ -26,7 +26,7 @@ export type StockTransferId = Brand<string, 'StockTransferId'>;
 
 // ─── ROLES Y PERMISOS (SaaS Multi-tenant) ──────────────────────────────────
 
-export type UserRole = 'admin' | 'customer' | 'employee';
+export type UserRole = 'admin' | 'TENANT_OWNER' | 'employee';
 
 export type UserPermission =
   | 'pos_access'

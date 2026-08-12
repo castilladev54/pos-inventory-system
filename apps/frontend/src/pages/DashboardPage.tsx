@@ -68,7 +68,7 @@ const DashboardPage = () => {
         {/* Nuevas vistas agregadas */}
         {activeTab === 'settings' && <SettingsGrid />}
         {activeTab === 'branches' && (
-          (user?.role === 'admin' || user?.role === 'customer') ? <BranchManager /> : <AccessDenied />
+          (user?.role === 'admin' || user?.role === 'TENANT_OWNER') ? <BranchManager /> : <AccessDenied />
         )}
       </main>
 

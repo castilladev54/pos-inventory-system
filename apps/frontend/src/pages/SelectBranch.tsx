@@ -18,7 +18,7 @@ export const SelectBranch: React.FC = () => {
 
   if (isLoading) return <div className="p-8 text-center text-white">Cargando sucursales...</div>;
 
-  const isCustomer = user?.role === 'customer';
+  const isCustomer = user?.role === 'TENANT_OWNER';
 
   // ── ESCENARIO 1: El Dueño aún no tiene sucursales (Creación Inicial) ──────
   if (isCustomer && branches.length === 0) {

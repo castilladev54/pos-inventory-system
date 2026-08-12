@@ -65,7 +65,7 @@ const BranchGate = ({ children }: BranchGateProps) => {
   // If not authenticated, let ProtectedRoute handle redirection to login
   if (!isAuthenticated) return children;
 
-  const esSuperAdmin = user?.role === 'admin' || user?.role === 'customer';
+  const esSuperAdmin = user?.role === 'admin' || user?.role === 'TENANT_OWNER';
 
   if (!esSuperAdmin) {
     // 1. Bloqueo por carencia absoluta de asignaciones
@@ -139,7 +139,7 @@ function App() {
             <Route
               path="/dashboard/*"
               element={
-                <ProtectedRoute allowedRoles={["admin", "customer", "employee"]}>
+                <ProtectedRoute allowedRoles={["admin", "TENANT_OWNER", "employee"]}>
                   <DashboardPage />
                 </ProtectedRoute>
               }

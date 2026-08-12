@@ -174,7 +174,7 @@ const AnalyticsManager = () => {
   const [dateFilter, setDateFilter] = useState('all');
   const [isGlobal, setIsGlobal] = useState(false);
 
-  const canViewGlobal = user?.role === 'admin' || user?.role === 'customer';
+  const canViewGlobal = user?.role === 'admin' || user?.role === 'TENANT_OWNER';
 
   // ── TanStack Queries ──
   const salesQuery = useSalesQuery({ page: 1, limit: 10000, global: canViewGlobal && isGlobal });
