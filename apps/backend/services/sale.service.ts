@@ -63,7 +63,9 @@ export const createSaleProcess = async (
     // OPTIMIZACIÓN: una sola consulta trae todos los productos (evita N+1).
     // El filtro de tenant (user === businessOwnerId) garantiza aislamiento multi-tenant.
     const productIds = items.map(i => i.product_id);
-    const products = await Product.find({ _id: { $in: productIds }, user: businessOwnerId }).session(session);
+    const products = await Product.find({ _id: { $in: productIds }, user: businessOwnerId })
+      .populate('category', 'max_debt_limit')
+      .session(session);
     const productsMap = new Map(products.map(p => [p._id.toString(), p]));
 
     // Validar existencia/dueño de productos y computar total antes de modificar
@@ -75,10 +77,30 @@ export const createSaleProcess = async (
       total_amount += item.quantity * item.unit_price;
     }
 
+    const branchLimit = branch.max_debt_limit ?? -20;
+
     // Decrementar stock en BranchInventory — venta forzada (upsert).
     // Si el documento no existe, se crea atómicamente con stock negativo.
-    // Esto permite vender productos sin registro de inventario previo.
+    // Esto permite vender productos sin registro de inventario previo, hasta el límite configurado.
     for (const item of items) {
+      const product = productsMap.get(item.product_id.toString())!;
+      
+      const currentInv = await BranchInventory.findOne({
+        branch_id: branchId,
+        product_id: item.product_id,
+        owner_id: businessOwnerId
+      }).session(session);
+      
+      const currentStock = currentInv ? currentInv.stock : 0;
+      
+      const limit = product.max_debt_limit 
+        ?? (product.category as any)?.max_debt_limit 
+        ?? branchLimit;
+        
+      if ((currentStock - item.quantity) < limit) {
+        throw new Error(`Freno de emergencia: la venta supera el límite de deuda permitida para ${product.name}`);
+      }
+
       await BranchInventory.findOneAndUpdate(
         { 
           branch_id: branchId, 
@@ -223,7 +245,9 @@ export const updateSaleProcess = async (
 
       // 2. Verificar existencia de los NUEVOS productos y computar total
       const newProductIds = items.map(i => i.product_id);
-      const products = await Product.find({ _id: { $in: newProductIds }, user: ownerId }).session(session);
+      const products = await Product.find({ _id: { $in: newProductIds }, user: ownerId })
+        .populate('category', 'max_debt_limit')
+        .session(session);
       const productsMap = new Map(products.map(p => [p._id.toString(), p]));
 
       let newTotal = 0;
@@ -233,8 +257,28 @@ export const updateSaleProcess = async (
         newTotal += item.quantity * item.unit_price;
       }
 
+      const branchLimit = branch.max_debt_limit ?? -20;
+
       // 3. Decrementar stock en BranchInventory — venta forzada (upsert).
       for (const item of items) {
+        const product = productsMap.get(item.product_id.toString())!;
+        
+        const currentInv = await BranchInventory.findOne({
+          branch_id: effectiveBranchId,
+          product_id: item.product_id,
+          owner_id: ownerId
+        }).session(session);
+        
+        const currentStock = currentInv ? currentInv.stock : 0;
+        
+        const limit = product.max_debt_limit 
+          ?? (product.category as any)?.max_debt_limit 
+          ?? branchLimit;
+          
+        if ((currentStock - item.quantity) < limit) {
+          throw new Error(`Freno de emergencia: la edición supera el límite de deuda permitida para ${product.name}`);
+        }
+
         await BranchInventory.findOneAndUpdate(
           { 
             branch_id: effectiveBranchId, 

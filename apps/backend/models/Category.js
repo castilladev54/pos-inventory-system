@@ -12,6 +12,9 @@ const categorySchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  max_debt_limit: {
+    type: Number
   }
 }, { timestamps: true });
 

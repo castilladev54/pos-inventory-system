@@ -75,7 +75,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
 
   } catch (error: any) {
     let status = 500;
-    if (error.message.includes('Stock insuficiente')) status = 400;
+    if (error.message.includes('Stock insuficiente') || error.message.includes('Freno de emergencia')) status = 400;
     else if (error.message.includes('no encontrado')) status = 404;
     res.status(status).json({ success: false, message: error.message });
   }

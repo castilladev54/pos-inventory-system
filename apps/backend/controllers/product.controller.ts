@@ -72,8 +72,9 @@ export const getProducts = async (req: Request | any, res: Response | any): Prom
     const searchSlug = normalizedSearch
       ? `:s${Buffer.from(normalizedSearch).toString("base64url")}`
       : "";
+    const hasDebtSlug = req.query.hasDebt === 'true' ? ':debt' : '';
     const cacheKey = useCache
-      ? `products:v${version}:${ownerId}:${branchId}:p${page}:l${limit}${searchSlug}:sort:${sortBy}:${sortOrder}`
+      ? `products:v${version}:${ownerId}:${branchId}:p${page}:l${limit}${searchSlug}${hasDebtSlug}:sort:${sortBy}:${sortOrder}`
       : null;
 
     // Función de base de datos
@@ -124,6 +125,8 @@ export const getProducts = async (req: Request | any, res: Response | any): Prom
             stock: { $ifNull: ['$inventoryData.stock', 0] }
           }
         },
+        
+        ...(req.query.hasDebt === 'true' ? [{ $match: { stock: { $lt: 0 } } }] : []),
         
         // Cruce y proyección estricta de la categoría
         {

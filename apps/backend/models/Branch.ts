@@ -7,6 +7,7 @@ export interface IBranch extends Document {
   phone?: string;
   is_active: boolean;
   owner_id: BusinessOwnerId;
+  max_debt_limit: number;
 }
 
 const branchSchema = new Schema<IBranch>(
@@ -16,6 +17,7 @@ const branchSchema = new Schema<IBranch>(
     phone: { type: String },
     is_active: { type: Boolean, default: true },
     owner_id: { type: Schema.Types.ObjectId, required: true },
+    max_debt_limit: { type: Number, default: -20 },
   },
   {
     timestamps: true,

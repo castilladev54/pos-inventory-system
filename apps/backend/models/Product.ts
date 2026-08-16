@@ -9,6 +9,7 @@ export interface IProduct extends Document {
   category: Schema.Types.ObjectId;
   unit_type: "unidad" | "kg" | "litro" | "metro";
   user: BusinessOwnerId; // Inquilino / Dueño del negocio
+  max_debt_limit?: number; // Override del límite de deuda
 
   // Virtual
   totalStock?: number;
@@ -46,6 +47,9 @@ const productSchema = new Schema<IProduct>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+    max_debt_limit: {
+      type: Number,
     },
   },
   {

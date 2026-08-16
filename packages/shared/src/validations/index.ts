@@ -57,12 +57,14 @@ export type ResetPasswordDTO = z.infer<typeof resetPasswordBodySchema>;
 export const createCategoryBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
+  max_debt_limit: z.number().optional(),
 });
 export type CreateCategoryDTO = z.infer<typeof createCategoryBodySchema>;
 
 export const updateCategoryBodySchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   description: z.string().optional(),
+  max_debt_limit: z.number().optional(),
 });
 export type UpdateCategoryDTO = z.infer<typeof updateCategoryBodySchema>;
 
@@ -75,6 +77,7 @@ export const createProductBodySchema = z.object({
   price: z.number({ message: 'Price is required' }).min(0, 'Price must be a positive number'),
   unit_type: z.enum(['unidad', 'kg', 'litro', 'metro'] as const).optional(),
   category: z.string().regex(OBJECT_ID_REGEX, 'Invalid Category ID format'),
+  max_debt_limit: z.number().optional(),
 });
 export type CreateProductDTO = z.infer<typeof createProductBodySchema>;
 
@@ -88,6 +91,7 @@ export const updateProductBodySchema = z
     unit_type: z.enum(['unidad', 'kg', 'litro', 'metro'] as const).optional(),
     category: z.string().regex(OBJECT_ID_REGEX, 'Invalid Category ID format').optional(),
     new_stock: z.number().min(0, 'new_stock debe ser >= 0').optional(),
+    max_debt_limit: z.number().optional(),
     stock_reason: z
       .enum(['initial_count', 'damaged', 'stolen', 'expired', 'correction', 'other'] as const)
       .optional(),

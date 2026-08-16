@@ -129,9 +129,10 @@ const ProductManager = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [showDebtOnly, setShowDebtOnly] = useState(false);
 
   // Queries
-  const { data, isLoading, error } = useProductsQuery(currentPage, ITEMS_PER_PAGE, debouncedSearch);
+  const { data, isLoading, error } = useProductsQuery(currentPage, ITEMS_PER_PAGE, debouncedSearch, showDebtOnly);
   const { data: categories = [] } = useAllCategoriesQuery();
   const { toBs } = useCurrencyStore();
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
@@ -286,13 +287,26 @@ const ProductManager = () => {
 
       {/* Buscador */}
       {!isFormOpen && (
-        <div className="mb-6">
-          <ProductSearchBar
-            searchTerm={searchTerm}
-            onSearch={setSearchTerm}
-            placeholder="Buscar por nombre o código de barras..."
-            onOpenScanner={() => setIsScannerOpen(true)}
-          />
+        <div className="mb-6 flex flex-col sm:flex-row gap-3 items-center">
+          <div className="flex-1 w-full">
+            <ProductSearchBar
+              searchTerm={searchTerm}
+              onSearch={setSearchTerm}
+              placeholder="Buscar por nombre o código de barras..."
+              onOpenScanner={() => setIsScannerOpen(true)}
+            />
+          </div>
+          <Button
+            type="button"
+            variant={showDebtOnly ? 'primary' : 'outline'}
+            onClick={() => {
+              setShowDebtOnly(!showDebtOnly);
+              setCurrentPage(1);
+            }}
+            className={`whitespace-nowrap ${showDebtOnly ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border-red-500/50' : 'text-gray-400 border-white/10 hover:text-white'}`}
+          >
+            🚨 Ver Deuda Operativa
+          </Button>
         </div>
       )}
 

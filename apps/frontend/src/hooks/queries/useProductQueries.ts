@@ -52,13 +52,14 @@ interface ProductListResponse {
  * Lista paginada de productos con búsqueda opcional.
  * keepPreviousData evita el flasheo al cambiar de página.
  */
-export function useProductsQuery(page: number, limit: number, search: string) {
+export function useProductsQuery(page: number, limit: number, search: string, hasDebt?: boolean) {
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (search.trim()) params.set('search', search.trim());
+  if (hasDebt) params.set('hasDebt', 'true');
 
   return useQuery<ProductListResponse>({
-    queryKey: productKeys.list(activeBranchId, page, limit, search),
+    queryKey: [...productKeys.list(activeBranchId, page, limit, search), { hasDebt }] as const,
     queryFn: async ({ signal }) => {
       const res = await API.get(`/products?${params.toString()}`, { signal });
       const data = res.data;
