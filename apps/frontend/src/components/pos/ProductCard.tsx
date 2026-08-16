@@ -23,16 +23,15 @@ const ProductCard = ({ product, cartQty, onAdd, toBs }: ProductCardProps) => {
   const expInfo = getExpirationInfo(product.expiration_date);
   return (
     <div
-      onClick={() => product.stock > 0 && onAdd(product)}
+      onClick={() => onAdd(product)}
       role="button"
-      tabIndex={product.stock > 0 ? 0 : -1}
+      tabIndex={0}
       aria-label={`Agregar ${product.name} al carrito`}
-      aria-disabled={product.stock <= 0}
-      onKeyDown={(e) => e.key === 'Enter' && product.stock > 0 && onAdd(product)}
-      className={`relative rounded-2xl border transition-all duration-200 overflow-hidden group
+      onKeyDown={(e) => e.key === 'Enter' && onAdd(product)}
+      className={`relative rounded-2xl border transition-all duration-200 overflow-hidden group cursor-pointer active:scale-95
         ${product.stock > 0
-          ? 'bg-[#1a1a24] border-white/5 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/10 cursor-pointer active:scale-95'
-          : 'bg-red-500/5 border-red-500/10 opacity-60 cursor-not-allowed'}`}
+          ? 'bg-[#1a1a24] border-white/5 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/10'
+          : 'bg-red-500/10 border-red-500/30 hover:border-red-500/60 hover:shadow-lg hover:shadow-red-500/20'}`}
     >
       <div className={`p-3 sm:p-4 flex flex-col ${expInfo ? 'h-[130px] sm:h-[155px]' : 'h-[110px] sm:h-[130px]'}`}>
         <div className="flex justify-between items-start mb-1 sm:mb-2">

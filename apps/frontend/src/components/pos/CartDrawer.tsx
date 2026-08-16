@@ -112,16 +112,21 @@ const CartDrawer = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                      <div className="flex items-center gap-2 bg-[#1a1a24] rounded-xl border border-white/10 p-1">
+                      <div className={`flex items-center gap-2 rounded-xl border p-1 transition-colors ${
+                        (item.maxStock ?? 0) - Number(item.quantity) < 0
+                          ? 'bg-red-500/10 border-red-500/50'
+                          : 'bg-[#1a1a24] border-white/10'
+                      }`}>
                         <InputText
                           type="number"
                           min="0.01"
                           step="0.01"
-                          max={item.maxStock}
                           value={item.quantity}
                           onChange={(e) => onQtyChange(index, e.target.value)}
                           aria-label={`Cantidad de ${item.name}`}
-                          className="w-16 sm:w-20 text-center text-base sm:text-lg font-bold bg-transparent border-none h-10 p-0 focus:ring-0"
+                          className={`w-16 sm:w-20 text-center text-base sm:text-lg font-bold bg-transparent border-none h-10 p-0 focus:ring-0 ${
+                            (item.maxStock ?? 0) - Number(item.quantity) < 0 ? 'text-red-400' : ''
+                          }`}
                         />
                       </div>
                       <div className="text-right w-20 sm:w-24 ml-auto">

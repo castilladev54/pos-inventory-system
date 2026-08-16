@@ -10,14 +10,9 @@ export function usePOSCart() {
   const [cartPulse, setCartPulse] = useState(false);
 
   const handleAddItem = useCallback((product, quantity = 1) => {
-    if (product.stock <= 0) return toast.error(`${product.name} no tiene stock`);
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.product_id === product._id);
       if (idx >= 0) {
-        if (prev[idx].quantity + quantity > product.totalStock) {
-          setTimeout(() => toast.error(`Sin más stock de ${product.name}`), 0);
-          return prev;
-        }
         return prev.map((item, i) =>
           i === idx ? { ...item, quantity: item.quantity + quantity } : item
         );
@@ -36,7 +31,6 @@ export function usePOSCart() {
     const qty = parseFloat(value);
     if (value !== "" && (isNaN(qty) || qty < 0)) return;
     setItems((prev) => {
-      if (qty > prev[index].maxStock) { toast.error(`Máximo stock: ${prev[index].maxStock}`); return prev; }
       return prev.map((item, i) => i === index ? { ...item, quantity: value } : item);
     });
   };
@@ -66,7 +60,6 @@ export function usePOSCart() {
       const next = [...prev];
       const newQty = (parseFloat(next[last].quantity) || 0) + delta;
       if (newQty <= 0) { next.splice(last, 1); }
-      else if (newQty > next[last].maxStock) { toast.error(`Stock máx: ${next[last].maxStock}`); return prev; }
       else { next[last].quantity = newQty; }
       return next;
     });
