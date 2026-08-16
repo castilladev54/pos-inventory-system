@@ -6,104 +6,41 @@ import { invalidateCache, getOrSetCache, getCacheVersion, bumpCacheVersion, buil
 import { createAdjustmentProcess } from '../services/adjustment.service.js';
 
 export const createProduct = async (req: any, res: any) => {
-  // stock_inicial es opcional. Si el usuario lo provee, se registra en el Kardex
-  // atómicamente junto con la creación del producto (transacción ACID) en una sucursal específica.
-  const { name, description, price, category, unit_type, barcode, stock_inicial, branch_id } = req.body;
-
-  // Verificar si la categoría existe y pertenece al usuario
-  const categoryExists = await Category.findOne({ _id: category, user: req.businessOwnerId });
-  if (!categoryExists) {
-    return res.status(400).json({
-      success: false,
-      message: "La categoría especificada no existe"
-    });
-  }
-
-  // Si se envía barcode, verificar que no esté duplicado para este usuario
-  if (barcode) {
-    const barcodeExists = await Product.findOne({ barcode, user: req.businessOwnerId });
-    if (barcodeExists) {
-      return res.status(400).json({
-        success: false,
-        message: `El código de barras "${barcode}" ya está asignado al producto "${barcodeExists.name}"`
-      });
-    }
-  }
-
-  const initialStock = Number(stock_inicial) || 0;
-
-  // ── Sin stock inicial: flujo simple sin transacción ──────────────────────────
-  if (initialStock === 0) {
-    try {
-      const product = new Product({
-        name, description, price,
-        category, unit_type,
-        ...(barcode ? { barcode } : {}),
-        user: req.businessOwnerId
-      });
-      await product.save();
-      await bumpCacheVersion('products', req.businessOwnerId);
-      return res.status(201).json({ success: true, product });
-    } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  // Si hay stock inicial, la sucursal es obligatoria
-  const branchId = req.branchId;
-  if (!branchId) {
-    return res.status(400).json({
-      success: false,
-      message: "Contexto de sucursal no válido o no autorizado (branch_id es requerido)."
-    });
-  }
-
-  // ── Con stock inicial: transacción ACID (Producto + Kardex en un solo commit) ─
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const { name, description, price, category, unit_type, barcode } = req.body;
 
   try {
-    // 1. Crear el producto (el stock se inicializará mediante el ajuste en BranchInventory)
-    const [product] = await Product.create([{
+    // Verificar si la categoría existe y pertenece al usuario
+    const categoryExists = await Category.findOne({ _id: category, user: req.businessOwnerId });
+    if (!categoryExists) {
+      return res.status(400).json({
+        success: false,
+        message: "La categoría especificada no existe"
+      });
+    }
+
+    // Si se envía barcode, verificar que no esté duplicado para este usuario
+    if (barcode) {
+      const barcodeExists = await Product.findOne({ barcode, user: req.businessOwnerId });
+      if (barcodeExists) {
+        return res.status(400).json({
+          success: false,
+          message: `El código de barras "${barcode}" ya está asignado al producto "${barcodeExists.name}"`
+        });
+      }
+    }
+
+    // Creación pura de catálogo — sin transacción, sin stock, sin BranchInventory.
+    // El inventario se inicializa lazily mediante la primera venta, compra o ajuste (upsert).
+    const product = new Product({
       name, description, price,
       category, unit_type,
       ...(barcode ? { barcode } : {}),
       user: req.businessOwnerId
-    }], { session });
-
-    if (!product) {
-      throw new Error("Failed to create product");
-    }
-
-    // 2. Registrar apertura de inventario en el Kardex y BranchInventory (comparte la sesión)
-    await createAdjustmentProcess(
-      req.actorId,
-      req.businessOwnerId,
-      branchId,
-      product._id as any,
-      initialStock,
-      'initial_count',
-      'Stock de apertura al crear el producto',
-      session  // <-- sesión compartida, el servicio NO confirmará por su cuenta
-    );
-
-    // 3. Confirmar ambas operaciones en un solo commit atómico
-    await session.commitTransaction();
-    session.endSession();
-
-    await product.populate('branchInventories');
-
-    await bumpCacheVersion('products', req.businessOwnerId);
-
-    return res.status(201).json({
-      success: true,
-      product,
-      message: `Producto creado con stock inicial de ${initialStock} en la sucursal especificada.`
     });
-
+    await product.save();
+    await bumpCacheVersion('products', req.businessOwnerId);
+    return res.status(201).json({ success: true, product });
   } catch (error: any) {
-    if (session.inTransaction()) await session.abortTransaction();
-    session.endSession();
     return res.status(500).json({ success: false, message: error.message });
   }
 };

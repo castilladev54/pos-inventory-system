@@ -75,26 +75,19 @@ export const createSaleProcess = async (
       total_amount += item.quantity * item.unit_price;
     }
 
-    // Decrementar stock en BranchInventory atómicamente directo en la base de datos ($gte)
+    // Decrementar stock en BranchInventory — venta forzada (upsert).
+    // Si el documento no existe, se crea atómicamente con stock negativo.
+    // Esto permite vender productos sin registro de inventario previo.
     for (const item of items) {
-      const product = productsMap.get(item.product_id.toString())!;
-      
-      const updated = await BranchInventory.findOneAndUpdate(
+      await BranchInventory.findOneAndUpdate(
         { 
           branch_id: branchId, 
           product_id: item.product_id, 
-          owner_id: businessOwnerId,
-          stock: { $gte: item.quantity } 
+          owner_id: businessOwnerId
         },
         { $inc: { stock: -item.quantity } },
-        { session, new: true }
+        { session, new: true, upsert: true }
       );
-
-      if (!updated) {
-        throw new Error(
-          `Stock insuficiente para "${product.name}" en esta sucursal.`
-        );
-      }
     }
 
     // Crear el documento de Venta
@@ -240,25 +233,17 @@ export const updateSaleProcess = async (
         newTotal += item.quantity * item.unit_price;
       }
 
-      // 3. Decrementar stock en BranchInventory atómicamente directo en la base de datos ($gte)
+      // 3. Decrementar stock en BranchInventory — venta forzada (upsert).
       for (const item of items) {
-        const product = productsMap.get(item.product_id.toString())!;
-        const updated = await BranchInventory.findOneAndUpdate(
+        await BranchInventory.findOneAndUpdate(
           { 
             branch_id: effectiveBranchId, 
             product_id: item.product_id, 
-            owner_id: ownerId,
-            stock: { $gte: item.quantity } 
+            owner_id: ownerId
           },
           { $inc: { stock: -item.quantity } },
-          { session, new: true }
+          { session, new: true, upsert: true }
         );
-
-        if (!updated) {
-          throw new Error(
-            `Stock insuficiente para "${product.name}" en esta sucursal.`
-          );
-        }
       }
 
       // 4. Reemplazar SaleDetail

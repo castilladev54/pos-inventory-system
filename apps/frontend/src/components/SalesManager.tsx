@@ -439,7 +439,7 @@ const SalesManager = () => {
             searchInputRef={searchInputRef}
             isCartOpen={isCartOpen}
             setIsCartOpen={handleCloseCart}
-            hasOpenShift={!!currentShift}
+            hasOpenShift={true} // Temporalmente en true para permitir vender sin turno: !!currentShift
             onOpenCashShift={() => setIsCashShiftModalOpen(true)}
           />
         )}

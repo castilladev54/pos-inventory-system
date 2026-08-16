@@ -73,9 +73,6 @@ export const createProductBodySchema = z.object({
   description: z.string().optional(),
   barcode: z.string().min(1, 'Barcode cannot be empty').optional(),
   price: z.number({ message: 'Price is required' }).min(0, 'Price must be a positive number'),
-  stock: z.number({ message: 'Stock is required' }).min(0, 'Stock must be a non-negative number').optional(),
-  stock_inicial: z.number({ message: 'Stock inicial is required' }).min(0, 'El stock inicial debe ser >= 0').optional(),
-  branch_id: z.string().regex(OBJECT_ID_REGEX, 'Invalid Branch ID format').optional(),
   unit_type: z.enum(['unidad', 'kg', 'litro', 'metro'] as const).optional(),
   category: z.string().regex(OBJECT_ID_REGEX, 'Invalid Category ID format'),
 });

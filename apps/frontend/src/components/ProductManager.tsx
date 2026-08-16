@@ -186,11 +186,6 @@ const ProductManager = () => {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!activeBranchId) {
-      toast.error('Debes seleccionar una sucursal activa para modificar el inventario');
-      return;
-    }
-
     const isStockChanged = editingId && Number(formData.new_stock) !== Number(formData.stock);
 
     if (isStockChanged && !formData.stock_reason) {
@@ -198,6 +193,7 @@ const ProductManager = () => {
       return;
     }
 
+    // Payload base: solo campos de catálogo (sin dependencias logísticas)
     const payload: any = {
       name: formData.name,
       description: formData.description,
@@ -205,16 +201,20 @@ const ProductManager = () => {
       category: formData.category,
       unit_type: formData.unit_type,
       barcode: formData.barcode || undefined,
-      branch_id: activeBranchId,
     };
 
     if (editingId) {
+      // Solo inyectar campos logísticos en el flujo de edición
       if (isStockChanged) {
+        if (!activeBranchId) {
+          toast.error('Debes seleccionar una sucursal activa para modificar el inventario');
+          return;
+        }
         payload.new_stock = Number(formData.new_stock);
-        // Agregamos metadata de ajuste de stock si se requiere
         payload.stock_reason = formData.stock_reason;
+        payload.branch_id = activeBranchId;
       }
-      
+
       toast.promise(
         updateMutation.mutateAsync({ id: editingId, data: payload }),
         {
@@ -227,7 +227,7 @@ const ProductManager = () => {
         }
       );
     } else {
-      payload.stock_inicial = Number(formData.stock);
+      // Creación pura de catálogo — sin stock_inicial, sin branch_id
       toast.promise(
         createMutation.mutateAsync(payload),
         {
@@ -386,19 +386,7 @@ const ProductManager = () => {
                   )}
                 </div>
               </div>
-            ) : (
-              <FormField
-                label="Stock Inicial"
-                name="stock"
-                type="number"
-                value={formData.stock}
-                onChange={handleChange}
-                required
-                min="0"
-                step="0.01"
-                placeholder="Ej. 50"
-              />
-            )}
+            ) : null}
 
             {/* Código de barras con botón escáner */}
             <div className="flex flex-col gap-1">

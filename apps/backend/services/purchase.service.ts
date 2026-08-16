@@ -96,8 +96,10 @@ export const createPurchaseProcess = async (
     // Incrementar BranchInventory.stock e crear PurchaseDetail para cada ítem
     for (const item of items) {
       // 1. Incrementar stock en la sucursal destino (operación atómica dentro de la transacción)
+      // owner_id en el filtro garantiza aislamiento multi-tenant y que el documento
+      // creado por upsert pertenezca al tenant correcto.
       await BranchInventory.findOneAndUpdate(
-        { branch_id: branchId, product_id: item.product_id },
+        { branch_id: branchId, product_id: item.product_id, owner_id: businessOwnerId },
         { $inc: { stock: item.quantity } },
         { upsert: true, session }
       );
