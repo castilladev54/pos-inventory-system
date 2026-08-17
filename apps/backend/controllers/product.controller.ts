@@ -4,28 +4,31 @@ import { Product } from '../models/Product.js';
 import { Category } from '../models/Category.js';
 import { invalidateCache, getOrSetCache, getCacheVersion, bumpCacheVersion, buildPaginatedKey, getBranchCacheVersion } from '../lib/redis.js';
 import { createAdjustmentProcess } from '../services/adjustment.service.js';
+import { ProductId } from '../types/brands.js';
 
-export const createProduct = async (req: any, res: any) => {
+export const createProduct = async (req: Request, res: Response): Promise<void> => {
   const { name, description, price, category, unit_type, barcode } = req.body;
 
   try {
     // Verificar si la categoría existe y pertenece al usuario
     const categoryExists = await Category.findOne({ _id: category, user: req.businessOwnerId });
     if (!categoryExists) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: "La categoría especificada no existe"
       });
+      return;
     }
 
     // Si se envía barcode, verificar que no esté duplicado para este usuario
     if (barcode) {
       const barcodeExists = await Product.findOne({ barcode, user: req.businessOwnerId });
       if (barcodeExists) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: `El código de barras "${barcode}" ya está asignado al producto "${barcodeExists.name}"`
         });
+        return;
       }
     }
 
@@ -39,13 +42,14 @@ export const createProduct = async (req: any, res: any) => {
     });
     await product.save();
     await bumpCacheVersion('products', req.businessOwnerId);
-    return res.status(201).json({ success: true, product });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
+    res.status(201).json({ success: true, product });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error interno del servidor';
+    res.status(500).json({ success: false, message });
   }
 };
 
-export const getProducts = async (req: Request | any, res: Response | any): Promise<void> => {
+export const getProducts = async (req: Request, res: Response): Promise<void> => {
   try {
     const ownerId = req.businessOwnerId;
     const branchId = req.branchId;
@@ -183,7 +187,7 @@ export const getProducts = async (req: Request | any, res: Response | any): Prom
     }
 
     if (data.currentPage > data.totalPages && data.totalPages > 0) {
-      return res.status(200).json({
+      res.status(200).json({
         success: true,
         products: [],
         total: data.total,
@@ -191,6 +195,7 @@ export const getProducts = async (req: Request | any, res: Response | any): Prom
         currentPage: page,
         fromCache
       });
+      return;
     }
 
     res.status(200).json({
@@ -201,12 +206,13 @@ export const getProducts = async (req: Request | any, res: Response | any): Prom
       currentPage: data.currentPage,
       fromCache
     });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error interno del servidor';
+    res.status(500).json({ success: false, message });
   }
 };
 
-export const getProductById = async (req: any, res: any) => {
+export const getProductById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const cacheKey = `product:${id}:${req.businessOwnerId}`;
@@ -215,17 +221,19 @@ export const getProductById = async (req: any, res: any) => {
     );
 
     if (!product) {
-      return res.status(404).json({ success: false, message: "Producto no encontrado" });
+      res.status(404).json({ success: false, message: "Producto no encontrado" });
+      return;
     }
 
     res.status(200).json({ success: true, product, fromCache });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error interno del servidor';
+    res.status(500).json({ success: false, message });
   }
 };
 
 // ─── Buscar producto por código de barras ──────────────────────
-export const getProductByBarcode = async (req, res) => {
+export const getProductByBarcode = async (req: Request, res: Response): Promise<void> => {
   try {
     const { code } = req.params;
     const cacheKey = `barcode:${code}:${req.businessOwnerId}`;
@@ -237,19 +245,21 @@ export const getProductByBarcode = async (req, res) => {
     );
 
     if (!product) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: "No se encontró un producto con ese código de barras"
       });
+      return;
     }
 
     res.status(200).json({ success: true, product, fromCache });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error interno del servidor';
+    res.status(500).json({ success: false, message });
   }
 };
 
-export const updateProduct = async (req, res) => {
+export const updateProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { name, description, price, category, unit_type, barcode, new_stock, stock_reason, branch_id } = req.body;
@@ -262,11 +272,11 @@ export const updateProduct = async (req, res) => {
       oldBarcode = old?.barcode;
     }
 
-    // ── 1. Validar categoría si se envía ─────────────────────────────────────
     if (category) {
       const categoryExists = await Category.findOne({ _id: category, user: req.businessOwnerId });
       if (!categoryExists) {
-        return res.status(400).json({ success: false, message: "La categoría especificada no existe" });
+        res.status(400).json({ success: false, message: "La categoría especificada no existe" });
+        return;
       }
     }
 
@@ -274,15 +284,25 @@ export const updateProduct = async (req, res) => {
     if (barcode) {
       const barcodeExists = await Product.findOne({ barcode, user: req.businessOwnerId, _id: { $ne: id } });
       if (barcodeExists) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: `El código de barras "${barcode}" ya está asignado al producto "${barcodeExists.name}"`
         });
+        return;
       }
     }
 
+    interface ProductUpdateFields {
+      name?: string;
+      description?: string;
+      price?: number;
+      category?: string;
+      unit_type?: string;
+      barcode?: string | null;
+    }
+
     // ── 3. Construir payload de actualización (solo campos de metadata) ───────
-    const updateData = {};
+    const updateData: ProductUpdateFields = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (price !== undefined) updateData.price = price;
@@ -299,7 +319,8 @@ export const updateProduct = async (req, res) => {
       ).populate('category', 'name');
 
       if (!product) {
-        return res.status(404).json({ success: false, message: "Producto no encontrado" });
+        res.status(404).json({ success: false, message: "Producto no encontrado" });
+        return;
       }
 
       // Invalidar caché paginada (bump de versión) + claves individuales
@@ -311,16 +332,18 @@ export const updateProduct = async (req, res) => {
         invalidateCache(...keysToInvalidate)
       ]);
 
-      return res.status(200).json({ success: true, product });
+      res.status(200).json({ success: true, product });
+      return;
     }
 
     // Si hay corrección de stock, la sucursal es obligatoria
     const branchId = req.branchId;
     if (!branchId) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: "Contexto de sucursal no válido o no autorizado para realizar un ajuste de stock."
       });
+      return;
     }
 
     // ── 4b. CON corrección de stock → transacción ACID única ─────────────────
@@ -340,7 +363,8 @@ export const updateProduct = async (req, res) => {
       if (!product) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(404).json({ success: false, message: "Producto no encontrado" });
+        res.status(404).json({ success: false, message: "Producto no encontrado" });
+        return;
       }
 
       // 4b.2 Ajuste de stock + registro en Kardex dentro de la MISMA sesión.
@@ -348,7 +372,7 @@ export const updateProduct = async (req, res) => {
         req.actorId,
         req.businessOwnerId,
         branchId,
-        id,
+        id as unknown as ProductId,
         new_stock,
         stock_reason,
         'Corrección desde edición de producto',
@@ -371,12 +395,13 @@ export const updateProduct = async (req, res) => {
         invalidateCache(...keysToInvalidate)
       ]);
 
-      return res.status(200).json({
+      res.status(200).json({
         success: true,
         product,
         stockAdjusted: true,
         message: `Producto actualizado. Stock ajustado a ${new_stock} en la sucursal.`
       });
+      return;
 
     } catch (innerError) {
       if (session.inTransaction()) {
@@ -386,20 +411,22 @@ export const updateProduct = async (req, res) => {
       throw innerError;
     }
 
-  } catch (error) {
-    console.error('updateProduct error:', error.message);
-    const status = error.message.includes('igual al stock actual') ? 400 : 500;
-    res.status(status).json({ success: false, message: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error interno del servidor';
+    console.error('updateProduct error:', message);
+    const status = message.includes('igual al stock actual') ? 400 : 500;
+    res.status(status).json({ success: false, message });
   }
 };
 
-export const deleteProduct = async (req, res) => {
+export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const product = await Product.findOneAndDelete({ _id: id, user: req.businessOwnerId });
 
     if (!product) {
-      return res.status(404).json({ success: false, message: "Producto no encontrado" });
+      res.status(404).json({ success: false, message: "Producto no encontrado" });
+      return;
     }
 
     // Invalidar caché paginada (bump de versión) + claves individuales
@@ -413,7 +440,8 @@ export const deleteProduct = async (req, res) => {
     ]);
 
     res.status(200).json({ success: true, message: "Producto eliminado correctamente" });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error interno del servidor';
+    res.status(500).json({ success: false, message });
   }
 };

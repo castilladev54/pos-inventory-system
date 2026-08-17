@@ -94,11 +94,15 @@ export const transferStockBetweenBranches = async ({
           stock: quantity,
           min_stock: 0
         }], { session });
-        destInventory = newDestInventoryArray[0];
+        destInventory = newDestInventoryArray[0] ?? null;
       } else {
         previousDestStock = destInventory.stock;
         destInventory.stock += quantity;
         await destInventory.save({ session });
+      }
+
+      if (!destInventory) {
+        throw new Error('Error crítico: no se pudo crear ni encontrar el inventario de destino.');
       }
 
       // Registrar Kardex de entrada
