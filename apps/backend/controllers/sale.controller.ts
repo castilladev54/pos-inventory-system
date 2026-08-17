@@ -40,14 +40,11 @@ function dayRangeVE(offsetDays = 0): { start: Date; end: Date } {
 
 export const createSale = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { items, payment_method, exchange_rate, branch_id } = req.body;
+    const { items, payment_method, exchange_rate } = req.body;
 
-    // branchId: puede venir del body o del header X-Branch-Id (inyectado por middleware)
-    const branchId = (branch_id || req.branchId) as BranchId | undefined;
-    if (!branchId) {
-      res.status(400).json({ success: false, message: 'branch_id es requerido para registrar una venta.' });
-      return;
-    }
+    // Se garantiza existencia previa vía requireBranchHeader
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const branchId = req.branchId!;
 
     // injectBusinessContext resolvió:
     //   req.businessOwnerId = ID del dueño del negocio (tenant)
