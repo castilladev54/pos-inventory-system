@@ -25,6 +25,7 @@ import Button from './atoms/Button';
 import Modal from './molecules/Modal';
 import BarcodeScanner from './BarcodeScanner';
 import Pagination from './molecules/Pagination';
+import { RateGuard } from './pos/RateGuard';
 
 import {
   usePurchasesQuery,
@@ -35,7 +36,8 @@ import {
 } from '../hooks/queries';
 import { useAllProductsForPOS } from '../hooks/queries/useProductQueries';
 import { useAuthStore } from '../store/authStore';
-import { useCurrencyStore } from '../store/currencyStore';
+import { useExchangeRateQuery } from '../hooks/queries/useExchangeRateQueries';
+import { toBs, formatDual } from '../utils/currency';
 import type {
   Purchase,
   PurchaseId,
@@ -447,10 +449,11 @@ const PurchaseDetailView = ({ purchase, onBack, onPay }: PurchaseDetailViewProps
 };
 
 /* ─── Componente principal ───────────────────────────────── */
-const PurchaseManager = () => {
+const PurchaseManagerInner = () => {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const { exchangeRate } = useCurrencyStore();
+  const { data: rateData } = useExchangeRateQuery();
+  const exchangeRate = rateData?.rate ?? 1;
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [viewedPurchaseId, setViewedPurchaseId] = useState<PurchaseId | null>(null);
@@ -810,7 +813,7 @@ const PurchaseManager = () => {
             <div className="mt-8 pt-6 border-t border-white/5 flex flex-col items-end">
               <span className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-1">Costo Total Estimado</span>
               <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
-                {fmtCost(currentTotal)}
+                {fmtUSD(currentTotal)} <span className="text-sm font-normal text-gray-500"> / Bs {toBs(currentTotal, exchangeRate ?? 1).toFixed(2)}</span>
               </div>
             </div>
           </fieldset>
@@ -831,4 +834,10 @@ const PurchaseManager = () => {
   );
 };
 
-export default PurchaseManager;
+export default function PurchaseManager() {
+  return (
+    <RateGuard>
+      <PurchaseManagerInner />
+    </RateGuard>
+  );
+}

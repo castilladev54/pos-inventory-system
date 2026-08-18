@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Wallet, Check, AlertTriangle } from 'lucide-react';
 import Button from '../atoms/Button';
 import { useAuthStore } from '../../store/authStore';
-import { useCurrencyStore } from '../../store/currencyStore';
+import { useExchangeRateQuery } from '../../hooks/queries/useExchangeRateQueries';
 import { 
   useCurrentCashShiftQuery, 
   useOpenCashShift, 
@@ -19,7 +19,8 @@ interface CashShiftManagerModalProps {
 
 const CashShiftManagerModal = ({ isOpen, onClose }: CashShiftManagerModalProps) => {
   const { user, activeBranchId } = useAuthStore();
-  const { exchangeRate, toBs } = useCurrencyStore();
+  const { data: rateData } = useExchangeRateQuery();
+  const exchangeRate = rateData?.rate ?? 1;
   
   const branchId = activeBranchId ?? null;
   const userId = user?._id;
@@ -179,7 +180,7 @@ const CashShiftManagerModal = ({ isOpen, onClose }: CashShiftManagerModalProps) 
           <p className="text-sm font-semibold text-gray-300 border-b border-white/10 pb-2">Ventas del Sistema (Esperado)</p>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Ventas en Efectivo:</span>
-            <span className="text-white font-medium">{fmtUSD(sys.cash_sales.USD)} / {fmtBs(sys.cash_sales.USD, toBs)}</span>
+            <span className="text-white font-medium">{fmtUSD(sys.cash_sales.USD)} / {fmtBs(sys.cash_sales.USD, exchangeRate)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Total Esperado en Caja (con fondo):</span>

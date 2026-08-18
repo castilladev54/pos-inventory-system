@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 import API from '../../api/axios';
 import { useAuthStore } from '../../store/authStore';
+import { exchangeRateKeys } from './useExchangeRateQueries';
 import type {
   Purchase,
   PurchaseId,
@@ -140,6 +141,12 @@ export function useCreatePurchase() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: purchaseKeys.all(activeBranchId) });
       qc.invalidateQueries({ queryKey: ['products', activeBranchId] });
+    },
+    onError: (error: any) => {
+      // Recuperación automática JIT: Si la tasa de cambio cambió, invalidamos la tasa para forzar un refetch.
+      if (error?.response?.status === 409 && error?.response?.data?.error === 'EXCHANGE_RATE_MISMATCH') {
+        qc.invalidateQueries({ queryKey: exchangeRateKeys.all });
+      }
     },
   });
 }

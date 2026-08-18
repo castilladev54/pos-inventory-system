@@ -20,7 +20,7 @@ export const setDailyRate = async (req, res) => {
 
     const exchangeRate = await ExchangeRate.findOneAndUpdate(
       { customer_id: ownerId, date: startOfDay },
-      { rate },
+      { rate, is_manual_override: true },
       { returnDocument: 'after', upsert: true }
     );
 

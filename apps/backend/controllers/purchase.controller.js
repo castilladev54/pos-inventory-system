@@ -1,5 +1,6 @@
 import { invalidateCache, getOrSetCache, bumpCacheVersion, getCacheVersion, buildPaginatedKey } from '../lib/redis.js';
 import { createPurchaseProcess, fetchPurchases, fetchPurchasesCount, fetchPurchaseById, registerPayment, fetchPayments } from '../services/purchase.service.js';
+import { ExchangeRate } from '../models/ExchangeRate.js';
 
 export const createPurchase = async (req, res) => {
   try {
@@ -8,6 +9,24 @@ export const createPurchase = async (req, res) => {
     const branchId = branch_id || req.branchId;
     if (!branchId) {
       return res.status(400).json({ success: false, message: 'branch_id es requerido para registrar una compra.' });
+    }
+
+    // Validación Just-In-Time (JIT) de la tasa de cambio
+    if (exchange_rate != null) {
+      const latestRateDoc = await ExchangeRate.findOne({ customer_id: req.businessOwnerId }).sort({ date: -1 }).lean();
+      const currentBackendRate = latestRateDoc?.rate ?? null;
+      
+      if (currentBackendRate !== null) {
+        // Tolerancia de punto flotante
+        if (Math.abs(currentBackendRate - exchange_rate) > 0.001) {
+          return res.status(409).json({
+            success: false,
+            error: 'EXCHANGE_RATE_MISMATCH',
+            message: 'La tasa de cambio ha sido actualizada en el servidor. Por favor, actualiza la caja registradora.',
+            current_rate: currentBackendRate
+          });
+        }
+      }
     }
 
     const purchase = await createPurchaseProcess(req.businessOwnerId, branchId, supplier, items, dueDate, exchange_rate);

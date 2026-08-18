@@ -7,7 +7,8 @@ import {
   useDeleteProduct,
   useAllCategoriesQuery,
 } from '../hooks/queries';
-import { useCurrencyStore } from '../store/currencyStore';
+import { useExchangeRateQuery } from '../hooks/queries/useExchangeRateQueries';
+import { toBs } from '../utils/currency';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import type { Product, ProductId } from '@inventory/shared';
@@ -21,6 +22,7 @@ import ConfirmDialog from './molecules/ConfirmDialog';
 import DataTable, { DataTableColumn } from './organisms/DataTable';
 import BarcodeScanner from './BarcodeScanner';
 import ProductSearchBar from './molecules/ProductSearchBar';
+import { RateGuard } from './pos/RateGuard';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -69,7 +71,7 @@ const formatUnit = (stock: number, unit_type?: string) => {
   return stock === 1 ? 'unidad' : 'unidades';
 };
 
-const buildColumns = (toBs: (usd: number) => number): DataTableColumn<Product>[] => [
+const buildColumns = (toBsFn: (usd: number, rate: number) => number, rate: number): DataTableColumn<Product>[] => [
   {
     key: 'name',
     label: 'Producto',
@@ -97,7 +99,7 @@ const buildColumns = (toBs: (usd: number) => number): DataTableColumn<Product>[]
     render: (val) => (
       <div>
         <p className="text-amber-500 font-medium text-sm sm:text-base">${Number(val).toFixed(2)}</p>
-        <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBs(val).toFixed(2)}</p>
+        <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBsFn(val, rate).toFixed(2)}</p>
       </div>
     ),
   },
@@ -125,7 +127,7 @@ const buildColumns = (toBs: (usd: number) => number): DataTableColumn<Product>[]
   },
 ];
 
-const ProductManager = () => {
+const ProductManagerInner = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -134,7 +136,8 @@ const ProductManager = () => {
   // Queries
   const { data, isLoading, error } = useProductsQuery(currentPage, ITEMS_PER_PAGE, debouncedSearch, showDebtOnly);
   const { data: categories = [] } = useAllCategoriesQuery();
-  const { toBs } = useCurrencyStore();
+  const { data: rateData } = useExchangeRateQuery();
+  const exchangeRate = rateData?.rate ?? 1;
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
 
   // Mutations
@@ -478,7 +481,7 @@ const ProductManager = () => {
       </Modal>
 
       <DataTable
-        columns={buildColumns(toBs)}
+        columns={buildColumns(toBs, exchangeRate)}
         data={products}
         isLoading={isLoading && !isFormOpen}
         onEdit={handleEdit}
@@ -520,4 +523,10 @@ const ProductManager = () => {
   );
 };
 
-export default ProductManager;
+export default function ProductManager() {
+  return (
+    <RateGuard>
+      <ProductManagerInner />
+    </RateGuard>
+  );
+}

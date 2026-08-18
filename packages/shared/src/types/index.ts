@@ -233,6 +233,7 @@ export interface ExchangeRate {
   customer_id: BusinessOwnerId;
   rate: number;
   date: string;
+  is_manual_override: boolean;
   createdAt: string;
 }
 

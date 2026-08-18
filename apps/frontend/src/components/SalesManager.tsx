@@ -4,7 +4,8 @@ import { Plus, Check, ShoppingCart, Calendar, HelpCircle, X, ChevronDown, Wallet
 import { useProductStore } from "../store/productStore";
 import { useStaffStore } from "../store/staffStore";
 import { useAuthStore } from "../store/authStore";
-import { useCurrencyStore } from "../store/currencyStore";
+import { useExchangeRateQuery } from "../hooks/queries/useExchangeRateQueries";
+import { toBs } from "../utils/currency";
 import toast from "react-hot-toast";
 import { fmtUSD, fmtBs, itemSubtotal, getExpirationInfo } from "../utils/salesFormatters";
 import API from "../api/axios";
@@ -20,6 +21,7 @@ import SaleDetailView from "./pos/SaleDetailView";
 import SalePOSForm from "./pos/SalePOSForm";
 import EditSaleModal from "./pos/EditSaleModal";
 import CashShiftManagerModal from "./pos/CashShiftManagerModal";
+import { RateGuard } from "./pos/RateGuard";
 
 import { usePOSCart } from "../hooks/usePOSCart";
 import { useSalesFilters, DATE_FILTER_OPTIONS } from "../hooks/useSalesFilters";
@@ -33,7 +35,8 @@ import type { FormEvent } from "react";
 /* ─── buildHistoryColumns ────────────────────────────────── */
 const buildHistoryColumns = (
   onViewDetail: (id: SaleId) => void,
-  toBs: (val: number) => number
+  toBsFn: (val: number, rate: number) => number,
+  rate: number
 ) => [
   {
     key: "createdAt",
@@ -81,11 +84,10 @@ const buildHistoryColumns = (
     key: "total_amount",
     label: "Total",
     render: (val: number, row: Sale) => {
-      const histBs = row.exchange_rate ? Number((val * row.exchange_rate).toFixed(2)) : toBs(val);
       return (
         <div>
           <div className="text-amber-500 font-medium text-sm sm:text-base">{fmtUSD(val)}</div>
-          <div className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {histBs.toFixed(2)}</div>
+          <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBsFn(val, row.exchange_rate ?? rate).toFixed(2)}</p>
         </div>
       );
     },
@@ -110,7 +112,7 @@ const buildHistoryColumns = (
 /* ════════════════════════════════════════════════════════════
    COMPONENTE PRINCIPAL — orquestador
    ════════════════════════════════════════════════════════════ */
-const SalesManager = () => {
+const SalesManagerInner = () => {
   const queryClient = useQueryClient();
   const createSaleMutation = useCreateSale();
   const cancelSaleMutation = useCancelSale();
@@ -118,7 +120,8 @@ const SalesManager = () => {
   const { posProducts, isPosLoading, fetchAllForPOS, fetchProductByBarcode } = useProductStore();
   const { staff, fetchStaff } = useStaffStore();
   const { user, activeBranchId } = useAuthStore();
-  const { exchangeRate, toBs } = useCurrencyStore();
+  const { data: rateData } = useExchangeRateQuery();
+  const exchangeRate = rateData?.rate ?? 1; // RateGuard asegura que data no es nulo, pero damos un fallback seguro
 
   /* ── UI state local ── */
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -428,7 +431,8 @@ const SalesManager = () => {
             onPaymentChange={setPaymentMethod}
             isLoading={createSaleMutation.isPending || isPosLoading}
             currentTotal={currentTotal}
-            toBs={toBs}
+            totalBs={toBs(currentTotal, exchangeRate)}
+            toBs={(val) => toBs(val, exchangeRate)}
             filteredProducts={filteredProducts}
             searchTerm={searchTerm}
             onSearch={setSearchTerm}
@@ -731,7 +735,7 @@ const SalesManager = () => {
           })()}
 
           <DataTable
-            columns={buildHistoryColumns(handleViewDetail, toBs) as any}
+            columns={buildHistoryColumns(handleViewDetail, toBs, exchangeRate) as any}
             data={sales}
             isLoading={isSalesLoading}
             emptyMessage={sales.length === 0 ? "Aún no hay ventas" : "Sin ventas en este período"}
@@ -796,4 +800,10 @@ const SalesManager = () => {
   );
 };
 
-export default SalesManager;
+export default function SalesManager() {
+  return (
+    <RateGuard>
+      <SalesManagerInner />
+    </RateGuard>
+  );
+}

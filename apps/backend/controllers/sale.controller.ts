@@ -8,6 +8,7 @@ import {
   buildPaginatedKey
 } from '../lib/redis.js';
 import { Sale } from '../models/Sale.js';
+import { ExchangeRate } from '../models/ExchangeRate.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import {
   createSaleProcess,
@@ -51,6 +52,24 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     //   req.actorId = ID real de quien hizo login (empleado o dueño)
     const ownerId = req.businessOwnerId;
     const soldBy = req.actorId;
+
+    // Validación Just-In-Time (JIT) de la tasa de cambio
+    if (exchange_rate != null) {
+      const latestRateDoc = await ExchangeRate.findOne({ customer_id: ownerId }).sort({ date: -1 }).lean();
+      const currentBackendRate = latestRateDoc?.rate ?? null;
+      
+      if (currentBackendRate !== null) {
+        // Tolerancia de punto flotante
+        if (Math.abs(currentBackendRate - exchange_rate) > 0.001) {
+          return res.status(409).json({
+            success: false,
+            error: 'EXCHANGE_RATE_MISMATCH',
+            message: 'La tasa de cambio ha sido actualizada en el servidor. Por favor, actualiza la caja registradora.',
+            current_rate: currentBackendRate
+          });
+        }
+      }
+    }
 
     const sale = await createSaleProcess(ownerId, soldBy, branchId, items, payment_method, exchange_rate);
 

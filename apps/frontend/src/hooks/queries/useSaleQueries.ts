@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 import API from '../../api/axios';
 import { useAuthStore } from '../../store/authStore';
+import { exchangeRateKeys } from './useExchangeRateQueries';
 import type {
   Sale,
   SaleId,
@@ -111,6 +112,12 @@ export function useCreateSale() {
       // Una venta descuenta stock → invalida productos + ventas + analytics
       qc.invalidateQueries({ queryKey: saleKeys.all(activeBranchId) });
       qc.invalidateQueries({ queryKey: ['products', activeBranchId] });
+    },
+    onError: (error: any) => {
+      // Recuperación automática JIT: Si la tasa de cambio cambió, invalidamos la tasa para forzar un refetch.
+      if (error?.response?.status === 409 && error?.response?.data?.error === 'EXCHANGE_RATE_MISMATCH') {
+        qc.invalidateQueries({ queryKey: exchangeRateKeys.all });
+      }
     },
   });
 }

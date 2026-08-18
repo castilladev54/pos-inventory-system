@@ -14,6 +14,10 @@ const exchangeRateSchema = new mongoose.Schema({
   date: {
     type: Date,
     required: true
+  },
+  is_manual_override: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 

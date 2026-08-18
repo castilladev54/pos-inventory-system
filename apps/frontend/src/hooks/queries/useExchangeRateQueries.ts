@@ -4,6 +4,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import API from '../../api/axios';
+import { RateSchema } from '../../schemas/rateSchema';
 import type { ExchangeRate } from '@inventory/shared';
 
 // ─── Query Keys ──────────────────────────────────────────────────────────────
@@ -26,17 +27,21 @@ export function useExchangeRateQuery() {
   return useQuery<ExchangeRate | null>({
     queryKey: exchangeRateKeys.today(),
     queryFn: async ({ signal }) => {
-      try {
-        const res = await API.get('/rates/today', { signal });
-        const data = res.data;
-        return (data.rate ?? data) as ExchangeRate;
-      } catch {
-        // Si no hay tasa registrada hoy, retornamos null (no un error)
-        return null;
+      const res = await API.get('/rates/today', { signal });
+      const data = res.data.rate ?? res.data;
+      if (data === null || (typeof data === 'object' && Object.keys(data).length === 0)) return null;
+
+      const parsed = RateSchema.safeParse(data);
+      if (!parsed.success) {
+        throw new Error(`Rate payload validation failed: ${parsed.error.message}`);
       }
+      return parsed.data as ExchangeRate;
     },
-    staleTime: 60 * 60_000, // 1 hora — la tasa es única por día en el backend
-    gcTime: 24 * 60 * 60_000,
+    staleTime: 86_400_000,       // 24 h
+    gcTime: 2 * 86_400_000,      // 48 h
+    refetchOnWindowFocus: false, // Sin refetch al cambiar pestaña
+    refetchOnMount: false,       // Sin refetch al montar componente
+    retry: 1,
   });
 }
 
@@ -47,8 +52,8 @@ export function useSaveExchangeRate() {
   const qc = useQueryClient();
   return useMutation<ExchangeRate, Error, SaveExchangeRatePayload>({
     mutationFn: async (payload) => {
-      const res = await API.post('/webhooks/bcv-sync', { rate: payload.rate });
-      return (res.data.rate ?? res.data) as ExchangeRate;
+      const res = await API.post('/rates', { rate: payload.rate });
+      return (res.data.exchangeRate ?? res.data) as ExchangeRate;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: exchangeRateKeys.all });

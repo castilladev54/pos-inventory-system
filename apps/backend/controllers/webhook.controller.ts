@@ -12,8 +12,8 @@ import { getCurrentLogger } from '../lib/logger.js';
 //    Previene TypeError fatales ante respuestas malformadas del servicio externo
 //    (e.g. 502 Bad Gateway de Render).
 // ─────────────────────────────────────────────────────────────────────────────
-// Estructura real de producción: https://siacm-be.onrender.com/api/rates/today
-// { data: { tasas: { USD: 36.5, ... } } }
+// Estructura real: https://siacm-be.onrender.com/api/bcv
+// { data: { tasas: { USD: "773.31250000", ... }, fuente: "BCV", ... } }
 const bcvApiResponseSchema = z.object({
   data: z.object({
     tasas: z.object({
@@ -121,33 +121,48 @@ export const syncBcvRate = async (req: Request, res: Response): Promise<void> =>
     const startOfDay = getStartOfDayVE();
     const bulkOps = tenants.map((tenant) => ({
       updateOne: {
-        filter: { customer_id: tenant._id, date: startOfDay },
-        update: { rate: usdRate },
+        filter: {
+          customer_id: tenant._id,
+          date: startOfDay,
+          is_manual_override: { $ne: true },
+        },
+        update: { $set: { rate: usdRate }, $setOnInsert: { is_manual_override: false } },
         upsert: true,
       },
     }));
 
-    // ── [DB] Transacción ACID (Mongoose Session) ─────────────────────────────
-    // Garantiza atomicidad global: si el bulkWrite falla en el tenant N,
-    // ningún tenant previo queda con tasa actualizada (rollback total).
-    // Compatible con Atlas M0 (Replica Set de 3 nodos) y MongoMemoryReplSet en tests.
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
+    // ── [DB] bulkWrite sin transacción (cada tenant es independiente) ────────
+    // ordered: false → MongoDB ejecuta todas las ops aunque alguna falle.
+    // Los DuplicateKeyError (E11000) son esperados: significan que ese tenant
+    // ya tiene un override manual para hoy → el webhook lo respeta.
     try {
-      await ExchangeRate.bulkWrite(bulkOps, { session });
-      await session.commitTransaction();
+      const result = await ExchangeRate.bulkWrite(bulkOps, { ordered: false });
+
       logger.info(
-        { usdRate, count: tenants.length },
-        'BCV rates successfully synced at database level',
+        {
+          usdRate,
+          matched: result.matchedCount,
+          upserted: result.upsertedCount,
+          modified: result.modifiedCount,
+        },
+        'BCV rates sync completed',
       );
-    } catch (dbError) {
-      await session.abortTransaction();
-      logger.error({ err: dbError }, 'Transaction aborted — no tenant was updated');
-      res.status(500).json({ success: false, message: 'Database sync failed' });
-      return;
-    } finally {
-      await session.endSession();
+    } catch (bulkError: any) {
+      // bulkWrite con ordered:false lanza BulkWriteError si hay fallos.
+      // Filtramos: E11000 = override manual (esperado), otros = error real.
+      if (bulkError?.code === 11000 || bulkError?.writeErrors?.every(
+        (e: any) => e.code === 11000
+      )) {
+        const skipped = bulkError.writeErrors?.length ?? 0;
+        logger.info(
+          { usdRate, skippedByOverride: skipped, total: tenants.length },
+          'BCV sync: some tenants skipped due to manual override (expected)',
+        );
+      } else {
+        logger.error({ err: bulkError }, 'Unexpected bulkWrite error during BCV sync');
+        res.status(500).json({ success: false, message: 'Database sync partially failed' });
+        return;
+      }
     }
 
     // ── [Cache] Invalidación via UNLINK por lotes en paralelo (Evita bloqueo y desbordamiento) ──

@@ -3,7 +3,6 @@ import { RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../atoms/Button';
 import InputText from '../atoms/InputText';
-import { useCurrencyStore } from '../../store/currencyStore';
 import { useExchangeRateQuery, useSaveExchangeRate } from '../../hooks/queries/useExchangeRateQueries';
 
 /**
@@ -12,21 +11,14 @@ import { useExchangeRateQuery, useSaveExchangeRate } from '../../hooks/queries/u
  * Sincroniza la tasa obtenida vía TanStack Query con el currencyStore de Zustand.
  */
 const ExchangeRateBar = () => {
-  const { exchangeRate, setExchangeRate } = useCurrencyStore();
   const { data: rateObj, isLoading } = useExchangeRateQuery();
   const saveMutation = useSaveExchangeRate();
+  const exchangeRate = rateObj?.rate ?? null;
 
   const [editing, setEditing] = useState(false);
-  const [temp, setTemp] = useState<string | number>(exchangeRate);
+  const [temp, setTemp] = useState<string | number | null>(exchangeRate);
 
-  // Sincronizar tasa del servidor al Zustand store local
-  useEffect(() => {
-    if (rateObj?.rate) {
-      setExchangeRate(rateObj.rate);
-    }
-  }, [rateObj?.rate, setExchangeRate]);
-
-  // Si cambia la tasa en el store y no estamos editando, actualizar el temp
+  // Si cambia la tasa en background y no estamos editando, actualizar el temp
   useEffect(() => {
     if (!editing) {
       setTemp(exchangeRate);
@@ -41,7 +33,6 @@ const ExchangeRateBar = () => {
 
     try {
       await saveMutation.mutateAsync({ rate: rateNum });
-      setExchangeRate(rateNum);
       setEditing(false);
       toast.success(`Tasa actualizada: 1 USD = ${rateNum} Bs`);
     } catch {
@@ -65,7 +56,7 @@ const ExchangeRateBar = () => {
             type="number"
             step="0.01"
             min="0.01"
-            value={temp}
+            value={temp ?? ''}
             onChange={(e) => setTemp(e.target.value)}
             disabled={saveMutation.isPending}
             className="w-28 px-3 py-1 text-sm"
