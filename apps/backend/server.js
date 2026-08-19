@@ -9,6 +9,12 @@ import cookieParser from "cookie-parser";
 import path from "path";
 import mongoose from "mongoose";
 
+// ⚠️ Optimizador de V8 para Serialización de Decimal128 (O(1) C++)
+// Evita bucles recursivos en .lean() y .aggregate() al hacer res.json()
+mongoose.Types.Decimal128.prototype.toJSON = function() {
+  return this.toString();
+};
+
 // Configuraciones y Libs
 import { connectDB } from "./lib/db.js";
 import { sanitizeNoSQL } from "./middleware/sanitize.js";

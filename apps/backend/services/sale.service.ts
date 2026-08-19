@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import Big from 'big.js';
 import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import { Product } from '../models/Product.js';
@@ -11,8 +12,8 @@ import { bumpBranchCacheVersion } from '../lib/redis.js';
 
 export interface SaleItemInput {
   product_id: ProductId;
-  quantity: number;
-  unit_price: number;
+  quantity: string;
+  unit_price: string;
 }
 
 // PaymentMethod importado de @inventory/shared
@@ -41,7 +42,7 @@ export const createSaleProcess = async (
   branchId: BranchId,
   items: SaleItemInput[],
   payment_method: PaymentMethod,
-  exchange_rate: number | null = null
+  exchange_rate: string | null = null
 ) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -58,7 +59,7 @@ export const createSaleProcess = async (
       throw new Error('La sucursal de venta no existe o se encuentra inactiva.');
     }
 
-    let total_amount = 0;
+    let total_amount = '0';
 
     // OPTIMIZACIÓN: una sola consulta trae todos los productos (evita N+1).
     // El filtro de tenant (user === businessOwnerId) garantiza aislamiento multi-tenant.
@@ -74,7 +75,8 @@ export const createSaleProcess = async (
       if (!product) {
         throw new Error(`Producto con ID ${item.product_id} no encontrado o no te pertenece.`);
       }
-      total_amount += item.quantity * item.unit_price;
+      const lineTotal = Big(item.quantity).times(Big(item.unit_price));
+      total_amount = Big(total_amount).plus(lineTotal).toString();
     }
 
     const branchLimit = branch.max_debt_limit ?? -20;
@@ -91,13 +93,13 @@ export const createSaleProcess = async (
         owner_id: businessOwnerId
       }).session(session);
       
-      const currentStock = currentInv ? currentInv.stock : 0;
+      const currentStock = currentInv ? currentInv.stock.toString() : '0';
       
-      const limit = product.max_debt_limit 
-        ?? (product.category as any)?.max_debt_limit 
-        ?? branchLimit;
+      const limit = product.max_debt_limit?.toString()
+        ?? (product.category as any)?.max_debt_limit?.toString() 
+        ?? branchLimit.toString();
         
-      if ((currentStock - item.quantity) < limit) {
+      if (Big(currentStock).minus(Big(item.quantity)).lt(Big(limit))) {
         throw new Error(`Freno de emergencia: la venta supera el límite de deuda permitida para ${product.name}`);
       }
 
@@ -107,7 +109,7 @@ export const createSaleProcess = async (
           product_id: item.product_id, 
           owner_id: businessOwnerId
         },
-        { $inc: { stock: -item.quantity } },
+        { $inc: { stock: Big(item.quantity).times(-1).toString() } },
         { session, new: true, upsert: true }
       );
     }

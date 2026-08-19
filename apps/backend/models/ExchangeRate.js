@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { DecimalConfig } from '../utils/decimalConfig.js';
 
 const exchangeRateSchema = new mongoose.Schema({
   customer_id: {
@@ -6,11 +7,7 @@ const exchangeRateSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  rate: {
-    type: Number,
-    required: true,
-    min: 0.01
-  },
+  rate: DecimalConfig,
   date: {
     type: Date,
     required: true
@@ -19,7 +16,12 @@ const exchangeRateSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { getters: true },
+  toObject: { getters: true },
+  id: false
+});
 
 // Garantizar que solo haya una tasa registrada por día para cada negocio
 exchangeRateSchema.index({ customer_id: 1, date: 1 }, { unique: true });

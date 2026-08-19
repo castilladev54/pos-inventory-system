@@ -19,6 +19,12 @@ import {
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
+// Validador estricto para strings matemáticos (acepta negativos y decimales)
+const numericString = z.string().regex(/^-?\d+(\.\d+)?$/, "Debe ser un número válido expresado como texto");
+
+// Validador de Llave de Idempotencia para aislamiento de red (UUID v4)
+export const idempotencyHeaderSchema = z.string().uuid("La llave de idempotencia debe ser un UUID v4 válido");
+
 /** Validador reutilizable de MongoDB ObjectId (regex, sin depender de mongoose) */
 export const objectIdSchema = z.string().regex(OBJECT_ID_REGEX, 'ID no válido');
 
@@ -57,14 +63,14 @@ export type ResetPasswordDTO = z.infer<typeof resetPasswordBodySchema>;
 export const createCategoryBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  max_debt_limit: z.number().optional(),
+  max_debt_limit: numericString.optional(),
 });
 export type CreateCategoryDTO = z.infer<typeof createCategoryBodySchema>;
 
 export const updateCategoryBodySchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   description: z.string().optional(),
-  max_debt_limit: z.number().optional(),
+  max_debt_limit: numericString.optional(),
 });
 export type UpdateCategoryDTO = z.infer<typeof updateCategoryBodySchema>;
 
@@ -74,10 +80,10 @@ export const createProductBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   barcode: z.string().min(1, 'Barcode cannot be empty').optional(),
-  price: z.number({ message: 'Price is required' }).min(0, 'Price must be a positive number'),
+  price: numericString,
   unit_type: z.enum(['unidad', 'kg', 'litro', 'metro'] as const).optional(),
   category: z.string().regex(OBJECT_ID_REGEX, 'Invalid Category ID format'),
-  max_debt_limit: z.number().optional(),
+  max_debt_limit: numericString.optional(),
 });
 export type CreateProductDTO = z.infer<typeof createProductBodySchema>;
 
@@ -86,12 +92,12 @@ export const updateProductBodySchema = z
     name: z.string().min(1, 'Name is required').optional(),
     description: z.string().optional(),
     barcode: z.string().min(1, 'Barcode cannot be empty').nullable().optional(),
-    price: z.number().min(0, 'Price must be a positive number').optional(),
-    stock: z.number().min(0, 'Stock must be a non-negative number').optional(),
+    price: numericString.optional(),
+    stock: numericString.optional(),
     unit_type: z.enum(['unidad', 'kg', 'litro', 'metro'] as const).optional(),
     category: z.string().regex(OBJECT_ID_REGEX, 'Invalid Category ID format').optional(),
-    new_stock: z.number().min(0, 'new_stock debe ser >= 0').optional(),
-    max_debt_limit: z.number().optional(),
+    new_stock: numericString.optional(),
+    max_debt_limit: numericString.optional(),
     stock_reason: z
       .enum(['initial_count', 'damaged', 'stolen', 'expired', 'correction', 'other'] as const)
       .optional(),
@@ -111,20 +117,20 @@ export type UpdateProductDTO = z.infer<typeof updateProductBodySchema>;
 
 export const saleItemSchema = z.object({
   product_id: z.string().regex(OBJECT_ID_REGEX, 'Invalid Product ID format'),
-  quantity: z.number().min(0.01, 'Quantity must be at least 0.01'),
-  unit_price: z.number().min(0, 'Unit price must be a positive number'),
+  quantity: numericString,
+  unit_price: numericString,
 });
 export type SaleItemDTO = z.infer<typeof saleItemSchema>;
 
 export const createSaleBodySchema = z.object({
   items: z.array(saleItemSchema).min(1, 'At least one product item is required'),
   payment_method: z.enum(['Efectivo', 'Divisas', 'Tarjeta', 'Pago Movil', 'Transferencia', 'Zelle'] as const),
-  exchange_rate: z.number().min(0.01).optional(),
+  exchange_rate: numericString.optional(),
 });
 export type CreateSaleDTO = z.infer<typeof createSaleBodySchema>;
 
 export const updateSaleBodySchema = z.object({
-  total_amount: z.number().min(0, 'Total amount must be a positive number').optional(),
+  total_amount: numericString.optional(),
   payment_method: z
     .enum(['Efectivo', 'Divisas', 'Tarjeta', 'Pago Movil', 'Transferencia', 'Zelle'] as const)
     .optional(),
@@ -136,8 +142,8 @@ export type UpdateSaleDTO = z.infer<typeof updateSaleBodySchema>;
 
 export const purchaseItemSchema = z.object({
   product_id: z.string().regex(OBJECT_ID_REGEX, 'Invalid Product ID format'),
-  quantity: z.number().min(0.01, 'Quantity must be at least 0.01'),
-  unit_cost: z.number().min(0, 'Unit cost must be a positive number'),
+  quantity: numericString,
+  unit_cost: numericString,
 });
 export type PurchaseItemDTO = z.infer<typeof purchaseItemSchema>;
 
@@ -145,7 +151,7 @@ export const createPurchaseBodySchema = z.object({
   supplier: z.string().min(1, 'Supplier is required'),
   items: z.array(purchaseItemSchema).min(1, 'At least one product item is required'),
   dueDate: z.string().datetime({ offset: true }).optional(),
-  exchange_rate: z.number().min(0.01).optional(),
+  exchange_rate: numericString.optional(),
 });
 export type CreatePurchaseDTO = z.infer<typeof createPurchaseBodySchema>;
 
@@ -153,7 +159,7 @@ export type CreatePurchaseDTO = z.infer<typeof createPurchaseBodySchema>;
 
 export const createAdjustmentBodySchema = z.object({
   product_id: objectIdSchema,
-  new_stock: z.number({ message: 'El stock nuevo es obligatorio y debe ser un número' }).min(0, 'El stock no puede ser negativo'),
+  new_stock: numericString,
   reason: z.enum(['initial_count', 'damaged', 'stolen', 'expired', 'correction', 'other'] as const),
   notes: z.string().optional(),
 });
@@ -162,7 +168,7 @@ export type CreateAdjustmentDTO = z.infer<typeof createAdjustmentBodySchema>;
 // ─── TASAS DE CAMBIO ────────────────────────────────────────────────────────
 
 export const rateBodySchema = z.object({
-  rate: z.number().min(0.01, 'La tasa debe ser mayor a 0'),
+  rate: numericString,
   date: z.string().optional(),
 });
 export type RateDTO = z.infer<typeof rateBodySchema>;

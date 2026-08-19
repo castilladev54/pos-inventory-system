@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { DecimalConfig, DecimalOptionalConfig } from '../utils/decimalConfig.js';
 
 const saleSchema = new mongoose.Schema({
   customer_id: {
@@ -16,25 +17,24 @@ const saleSchema = new mongoose.Schema({
     ref: 'Branch',
     required: true
   },
-  total_amount: {
-    type: Number,
-    required: true
-  },
+  total_amount: DecimalConfig,
   payment_method: {
     type: String,
     required: true,
     enum: ['Efectivo', 'Divisas', 'Tarjeta', 'Pago Movil', 'Transferencia', 'Zelle']
   },
-  exchange_rate: {
-    type: Number,
-    default: null
-  },
+  exchange_rate: DecimalOptionalConfig,
   status: {
     type: String,
     enum: ['pending', 'completed', 'cancelled'],
     default: 'completed'
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { getters: true },
+  toObject: { getters: true },
+  id: false
+});
 
 saleSchema.index({ customer_id: 1, createdAt: -1 });
 saleSchema.index({ customer_id: 1, sold_by: 1, createdAt: -1 });

@@ -1,12 +1,13 @@
 import { Schema, model, Document } from "mongoose";
 import { BusinessOwnerId, BranchId, ProductId } from "../types/brands.js";
+import { DecimalConfig } from "../utils/decimalConfig.js";
 
 export interface IBranchInventory extends Document {
   owner_id: BusinessOwnerId;
   product_id: ProductId;
   branch_id: BranchId;
-  stock: number;
-  min_stock: number;
+  stock: string;
+  min_stock: string;
 }
 
 const branchInventorySchema = new Schema<IBranchInventory>(
@@ -14,11 +15,20 @@ const branchInventorySchema = new Schema<IBranchInventory>(
     owner_id: { type: Schema.Types.ObjectId, ref: "User", required: true },
     product_id: { type: Schema.Types.ObjectId, required: true, ref: "Product" },
     branch_id: { type: Schema.Types.ObjectId, required: true, ref: "Branch" },
-    stock: { type: Number, required: true, default: 0 },
-    min_stock: { type: Number, required: true, default: 0 },
+    stock: {
+      ...DecimalConfig,
+      default: mongoose.Types.Decimal128.fromString('0')
+    },
+    min_stock: {
+      ...DecimalConfig,
+      default: mongoose.Types.Decimal128.fromString('0')
+    },
   },
   {
     timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true },
+    id: false
   }
 );
 

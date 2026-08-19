@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import { User } from './User.js';
 import { Purchase } from './Purchase.js';
+import { DecimalConfig } from '../utils/decimalConfig.js';
+import Big from 'big.js';
 
 const purchaseDetailSchema = new mongoose.Schema({
   purchase_id: {
@@ -13,17 +15,14 @@ const purchaseDetailSchema = new mongoose.Schema({
     ref: 'Product',
     required: true
   },
-  quantity: {
-    type: Number,
-    required: true,
-    min: 0.01
-  },
-  unit_cost: {
-    type: Number,
-    required: true,
-    min: 0
-  }
-}, { timestamps: true });
+  quantity: DecimalConfig,
+  unit_cost: DecimalConfig
+}, { 
+  timestamps: true,
+  toJSON: { getters: true },
+  toObject: { getters: true },
+  id: false
+});
 
 // Middleware pre-save: Recálculo del costo promedio de inventario (av_inventory_cost).
 //
@@ -64,24 +63,38 @@ purchaseDetailSchema.pre('save', async function () {
           totalCost:  { $sum: { $multiply: ['$quantity', '$unit_cost'] } },
           totalItems: { $sum: '$quantity' }
         }
+      },
+      {
+        $project: {
+          totalCost: { $toString: "$totalCost" },
+          totalItems: { $toString: "$totalItems" }
+        }
       }
     ]).session(session);
 
-    let newAvgCost = 0;
-    if (resultAggr.length > 0 && resultAggr[0].totalItems > 0) {
+    let newAvgCost = '0';
+    
+    // Control estricto de vacíos usando strings
+    const prevTotalCost = resultAggr.length > 0 ? resultAggr[0].totalCost : '0';
+    const prevTotalItems = resultAggr.length > 0 ? resultAggr[0].totalItems : '0';
+
+    if (resultAggr.length > 0 && Big(prevTotalItems).gt(0)) {
       // Incluir el item actual (aún no guardado) en el cálculo
-      const currentCost = resultAggr[0].totalCost + (this.quantity * this.unit_cost);
-      const currentQty  = resultAggr[0].totalItems + this.quantity;
-      newAvgCost = currentCost / currentQty;
+      const currentItemCost = Big(this.quantity.toString()).times(Big(this.unit_cost.toString()));
+      const currentCost = Big(prevTotalCost).plus(currentItemCost);
+      const currentQty = Big(prevTotalItems).plus(Big(this.quantity.toString()));
+      
+      // newAvgCost = currentCost / currentQty (redondeado a 4 decimales)
+      newAvgCost = currentCost.div(currentQty).toFixed(4, 1);
     } else {
       // Primer detalle del admin → su costo unitario es el promedio inicial
-      newAvgCost = this.unit_cost;
+      newAvgCost = Big(this.unit_cost.toString()).toString();
     }
 
     // 3. Actualizar el costo promedio de inventario del admin
     await User.findByIdAndUpdate(
       adminId,
-      { av_inventory_cost: newAvgCost },
+      { av_inventory_cost: newAvgCost }, // Asume que User.av_inventory_cost será DecimalConfig también
       { session }
     );
   } catch (error) {

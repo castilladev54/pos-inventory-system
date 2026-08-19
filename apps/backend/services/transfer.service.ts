@@ -1,11 +1,12 @@
 import mongoose from 'mongoose';
+import Big from 'big.js';
 import { Branch } from '../models/Branch.js';
 import { BranchInventory } from '../models/BranchInventory.js';
 import { InventoryAdjustment } from '../models/InventoryAdjustment.js';
 
 interface TransferItem {
   product_id: string;
-  quantity: number;
+  quantity: string;
 }
 
 interface TransferParams {
@@ -48,7 +49,7 @@ export const transferStockBetweenBranches = async ({
     for (const item of items) {
       const { product_id, quantity } = item;
 
-      if (quantity <= 0) {
+      if (Big(quantity).lte(0)) {
         throw new Error(`La cantidad a transferir debe ser mayor a 0.`);
       }
 
@@ -58,12 +59,12 @@ export const transferStockBetweenBranches = async ({
         product_id: product_id
       }).session(session);
 
-      if (!sourceInventory || sourceInventory.stock < quantity) {
+      if (!sourceInventory || Big(sourceInventory.stock).lt(Big(quantity))) {
         throw new Error(`Stock insuficiente en sucursal de origen para realizar la transferencia.`);
       }
 
-      const previousSourceStock = sourceInventory.stock;
-      sourceInventory.stock -= quantity;
+      const previousSourceStock = sourceInventory.stock.toString();
+      sourceInventory.stock = Big(sourceInventory.stock).minus(Big(quantity)).toString();
       await sourceInventory.save({ session });
 
       // Registrar Kardex de salida
@@ -73,7 +74,7 @@ export const transferStockBetweenBranches = async ({
         user_id: actorId,
         previous_stock: previousSourceStock,
         new_stock: sourceInventory.stock,
-        difference: -quantity,
+        difference: Big(quantity).times(-1).toString(),
         reason: 'transfer_out',
         notes: notes || `Transferencia hacia sucursal ${destBranch.name}`
       }], { session });
@@ -84,7 +85,7 @@ export const transferStockBetweenBranches = async ({
         product_id: product_id
       }).session(session);
 
-      let previousDestStock = 0;
+      let previousDestStock = '0';
       if (!destInventory) {
         // Crear el inventario si no existe en la sucursal de destino
         const newDestInventoryArray = await BranchInventory.create([{
@@ -92,12 +93,12 @@ export const transferStockBetweenBranches = async ({
           branch_id: destinationBranchId,
           product_id: product_id,
           stock: quantity,
-          min_stock: 0
+          min_stock: '0'
         }], { session });
         destInventory = newDestInventoryArray[0] ?? null;
       } else {
-        previousDestStock = destInventory.stock;
-        destInventory.stock += quantity;
+        previousDestStock = destInventory.stock.toString();
+        destInventory.stock = Big(destInventory.stock).plus(Big(quantity)).toString();
         await destInventory.save({ session });
       }
 

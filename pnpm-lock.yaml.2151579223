@@ -26,6 +26,9 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
+      big.js:
+        specifier: ^7.0.1
+        version: 7.0.1
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -62,6 +65,9 @@ importers:
       mongoose:
         specifier: ^9.2.4
         version: 9.8.1
+      mongoose-lean-getters:
+        specifier: ^2.3.1
+        version: 2.3.1
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -75,9 +81,6 @@ importers:
       '@types/bcryptjs':
         specifier: ^3.0.0
         version: 3.0.0
-      '@types/big.js':
-        specifier: ^7.0.0
-        version: 7.0.0
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -132,9 +135,6 @@ importers:
       axios:
         specifier: ^1.13.6
         version: 1.18.1
-      big.js:
-        specifier: ^7.0.1
-        version: 7.0.1
       framer-motion:
         specifier: ^12.35.1
         version: 12.43.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -172,9 +172,6 @@ importers:
       '@eslint/js':
         specifier: ^9.39.1
         version: 9.39.5
-      '@types/big.js':
-        specifier: ^7.0.0
-        version: 7.0.0
       '@types/node':
         specifier: ^26.1.1
         version: 26.1.2
@@ -208,9 +205,6 @@ importers:
       vite:
         specifier: ^7.3.1
         version: 7.3.6(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.1)
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@types/node@26.1.2)(vite@7.3.6(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.1))
 
   packages/shared:
     dependencies:
@@ -908,9 +902,6 @@ packages:
   '@types/bcryptjs@3.0.0':
     resolution: {integrity: sha512-WRZOuCuaz8UcZZE4R5HXTco2goQSI2XxjGY3hbM/xDvwmqFWd4ivooImsMx65OKM6CtNKbnZ5YL+YwAwK7c1dg==}
     deprecated: This is a stub types definition. bcryptjs provides its own type definitions, so you do not need this installed.
-
-  '@types/big.js@7.0.0':
-    resolution: {integrity: sha512-WfAGp7IbJvyB8EmWK4tJD24rJRAL6uVbw3LV/hJntFNam+os9KWKj0PzXo8rRRpjupYK8U0M8FoBB8dBhWF2dg==}
 
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
@@ -2319,6 +2310,10 @@ packages:
       socks:
         optional: true
 
+  mongoose-lean-getters@2.3.1:
+    resolution: {integrity: sha512-aO3YLqOnAaZlQ09uV+wfRk2qdZ5jRpXYmSY+VJviBs8b+aY5bxt8mcuWgWoUIWwXAIej+hgu+dCkR2VmyUtPbg==}
+    engines: {node: '>= 14'}
+
   mongoose@9.8.1:
     resolution: {integrity: sha512-1ncioLSBWeFSXIiKw6aR4YYFAhpvS7uSbPpkzq5ELSP9PEScGkbzFg6Q0mNuHighosmgZPYPsY4sSIXqkY3/hw==}
     engines: {node: '>=20.19.0'}
@@ -3588,8 +3583,6 @@ snapshots:
   '@types/bcryptjs@3.0.0':
     dependencies:
       bcryptjs: 2.4.3
-
-  '@types/big.js@7.0.0': {}
 
   '@types/body-parser@1.19.6':
     dependencies:
@@ -4969,6 +4962,19 @@ snapshots:
       '@mongodb-js/saslprep': 1.4.13
       bson: 7.3.1
       mongodb-connection-string-url: 7.0.2
+
+  mongoose-lean-getters@2.3.1:
+    dependencies:
+      mongoose: 9.8.1
+      mpath: 0.9.0
+    transitivePeerDependencies:
+      - '@aws-sdk/credential-providers'
+      - '@mongodb-js/zstd'
+      - gcp-metadata
+      - kerberos
+      - mongodb-client-encryption
+      - snappy
+      - socks
 
   mongoose@9.8.1:
     dependencies:

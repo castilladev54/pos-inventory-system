@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
+import Big from 'big.js';
 import { GoogleGenAI } from '@google/genai';
+import { User } from '../models/User.js';
 import { Product } from '../models/Product.js';
 import { Sale } from '../models/Sale.js';
 import { Purchase } from '../models/Purchase.js';
@@ -181,15 +183,16 @@ export const getAIAdviceStreamService = async (userId, userQuestion) => {
         ]));
 
         // ─── Calcular métricas ────────────────────────────────────────────
-        const incomeToday  = salesToday.reduce((acc, s) => acc + s.total_amount, 0);
-        const expenseToday = purchasesToday.reduce((acc, p) => acc + p.total_cost, 0);
+        const incomeToday  = salesToday.reduce((acc, s) => Big(acc).plus(Big(s.total_amount.toString())).toString(), '0');
+        const expenseToday = purchasesToday.reduce((acc, p) => Big(acc).plus(Big(p.total_cost.toString())).toString(), '0');
 
         // Agrupar ventas de hoy por producto
         const ventasHoyResumen = {};
         for (const detail of salesDetailsRaw) {
             if (!detail.product_id) continue;
             const name = detail.product_id.name;
-            ventasHoyResumen[name] = (ventasHoyResumen[name] || 0) + (detail.quantity * detail.unit_price);
+            const lineTotal = Big(detail.quantity.toString()).times(Big(detail.unit_price.toString()));
+            ventasHoyResumen[name] = Big(ventasHoyResumen[name] || '0').plus(lineTotal).toString();
         }
         const ventas_hoy = Object.entries(ventasHoyResumen).map(([producto, monto_total]) => ({ producto, monto_total }));
 

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { DecimalConfig } from '../utils/decimalConfig.js';
 
 const supplierPaymentSchema = new mongoose.Schema({
   purchase_id: {
@@ -11,16 +12,17 @@ const supplierPaymentSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  amount: {
-    type: Number,
-    required: true,
-    min: 0.01
-  },
+  amount: DecimalConfig,
   date: {
     type: Date,
     default: Date.now
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { getters: true },
+  toObject: { getters: true },
+  id: false
+});
 
 supplierPaymentSchema.index({ admin_id: 1, date: -1 });
 

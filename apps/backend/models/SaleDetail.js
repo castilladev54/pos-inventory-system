@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { DecimalConfig } from '../utils/decimalConfig.js';
 
 const saleDetailSchema = new mongoose.Schema({
     sale_id: {
@@ -11,17 +12,14 @@ const saleDetailSchema = new mongoose.Schema({
         ref: 'Product',
         required: true
     },
-    quantity: {
-        type: Number,
-        required: true,
-        min: 0.01
-    },
-    unit_price: {
-        type: Number,
-        required: true,
-        min: 0
-    }
-}, { timestamps: true });
+    quantity: DecimalConfig,
+    unit_price: DecimalConfig
+}, { 
+    timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true },
+    id: false
+});
 
 // NOTA: El hook pre-save que validaba product.stock fue eliminado.
 // El campo stock global de Product no existe más (arquitectura multi-sucursal).

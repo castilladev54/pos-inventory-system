@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { DecimalConfig, DecimalOptionalConfig } from '../utils/decimalConfig.js';
 
 const purchaseSchema = new mongoose.Schema({
   admin_id: {
@@ -15,14 +16,8 @@ const purchaseSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  total_cost: {
-    type: Number,
-    required: true
-  },
-  exchange_rate: {
-    type: Number,
-    default: null
-  },
+  total_cost: DecimalConfig,
+  exchange_rate: DecimalOptionalConfig,
   status: {
     type: String,
     enum: ['PENDING', 'PARTIAL', 'PAID'],
@@ -33,8 +28,8 @@ const purchaseSchema = new mongoose.Schema({
     required: true
   },
   paid_amount: {
-    type: Number,
-    default: 0
+    ...DecimalConfig,
+    default: mongoose.Types.Decimal128.fromString('0')
   },
   payment_date: {
     type: Date
@@ -43,7 +38,12 @@ const purchaseSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { getters: true },
+  toObject: { getters: true },
+  id: false
+});
 
 purchaseSchema.index({ admin_id: 1, createdAt: -1 });
 

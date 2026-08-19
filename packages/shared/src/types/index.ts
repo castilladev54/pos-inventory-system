@@ -75,8 +75,8 @@ export interface BranchInventory {
   _id: string;
   branch_id: BranchId;
   product_id: ProductId;
-  stock: number;
-  min_stock: number;
+  stock: string;
+  min_stock: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,7 +91,7 @@ export interface Product {
   name: string;
   description: string;
   barcode?: string;
-  price: number;
+  price: string;
   category: CategoryId | Category;
   unit_type: UnitType;
   user: BusinessOwnerId;
@@ -100,7 +100,7 @@ export interface Product {
   updatedAt: string;
   __v: number;
   branchInventories: BranchInventory[];
-  totalStock: number;
+  totalStock: string;
 }
 
 // ─── COMPRAS A PROVEEDORES ──────────────────────────────────────────────────
@@ -111,8 +111,8 @@ export interface PurchaseDetailItem {
   _id: string;
   purchase_id: PurchaseId;
   product_id: ProductId | { _id: ProductId; name: string };
-  quantity: number;
-  unit_cost: number;
+  quantity: string;
+  unit_cost: string;
   createdAt?: string;
 }
 
@@ -121,12 +121,12 @@ export interface Purchase {
   admin_id: UserId | { _id: UserId; name: string; email: string };
   branch_id: BranchId;
   supplier: string;
-  total_cost: number;
-  paid_amount: number;
+  total_cost: string;
+  paid_amount: string;
   status: PurchaseDbStatus;
   due_date?: string;
   dueDate?: string;
-  exchange_rate?: number | null;
+  exchange_rate?: string | null;
   payment_date?: string;
   date?: string;
   createdAt: string;
@@ -153,14 +153,14 @@ export type PaymentMethod =
 
 export interface SaleItem {
   product_id: ProductId;
-  quantity: number;
-  unit_price: number;
+  quantity: string;
+  unit_price: string;
 }
 
 export interface Sale {
   _id: SaleId;
-  total_amount: number;
-  exchange_rate: number | null;
+  total_amount: string;
+  exchange_rate: string | null;
   payment_method: PaymentMethod;
   status: 'pending' | 'completed' | 'cancelled' | 'Anulada';
   sold_by: UserId | { _id: UserId; name: string } | null;
@@ -176,14 +176,14 @@ export interface SaleDetailItemDTO {
     name: string;
     unit_type?: string;
   } | null;
-  quantity: number;
-  unit_price: number;
+  quantity: string;
+  unit_price: string;
 }
 
 export interface SaleDetailDTO {
   _id: SaleId;
-  total_amount: number;
-  exchange_rate: number | null;
+  total_amount: string;
+  exchange_rate: string | null;
   payment_method: PaymentMethod;
   status: 'pending' | 'completed' | 'cancelled' | 'Anulada';
   sold_by: { _id: UserId; name: string } | null;

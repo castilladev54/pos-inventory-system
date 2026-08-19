@@ -39,7 +39,7 @@ function dayRangeVE(offsetDays = 0): { start: Date; end: Date } {
 }
 
 
-export const createSale = async (req: Request, res: Response): Promise<void> => {
+export const createSale = async (req: Request, res: Response): Promise<any> => {
   try {
     const { items, payment_method, exchange_rate } = req.body;
 
@@ -83,11 +83,11 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       keysToInvalidate.length > 0 ? invalidateCache(...keysToInvalidate) : Promise.resolve()
     ]);
 
-    res.status(201).json({
+    return {
       success: true,
       message: "Venta registrada exitosamente",
       sale
-    });
+    };
 
   } catch (error: any) {
     let status = 500;

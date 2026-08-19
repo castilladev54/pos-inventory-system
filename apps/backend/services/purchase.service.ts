@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import Big from 'big.js';
 import { Purchase } from '../models/Purchase.js';
 import { PurchaseDetail } from '../models/PurchaseDetail.js';
 import { Product } from '../models/Product.js';
@@ -12,8 +13,8 @@ import { bumpBranchCacheVersion } from '../lib/redis.js';
 
 export interface PurchaseItemInput {
   product_id: ProductId;
-  quantity: number;
-  unit_cost: number;
+  quantity: string;
+  unit_cost: string;
 }
 
 export interface PurchaseFilters {
@@ -47,7 +48,7 @@ export const createPurchaseProcess = async (
   supplier: string,
   items: PurchaseItemInput[],
   dueDate: Date | null = null,
-  exchange_rate: number | null = null
+  exchange_rate: string | null = null
 ) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -64,7 +65,7 @@ export const createPurchaseProcess = async (
       throw new Error('La sucursal destino no existe o se encuentra inactiva.');
     }
 
-    let total_cost = 0;
+    let total_cost = '0';
 
     // Validación en bloque (evita N+1): verifica que todos los productos
     // existan y pertenezcan al tenant antes de crear nada
@@ -76,7 +77,8 @@ export const createPurchaseProcess = async (
       if (!productsMap.has(item.product_id.toString())) {
         throw new Error(`Producto con ID ${item.product_id} no encontrado o no te pertenece.`);
       }
-      total_cost += item.quantity * item.unit_cost;
+      const lineTotal = Big(item.quantity).times(Big(item.unit_cost));
+      total_cost = Big(total_cost).plus(lineTotal).toString();
     }
 
     // Si no se envía fecha de vencimiento, por defecto 30 días
