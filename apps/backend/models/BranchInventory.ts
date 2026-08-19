@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Schema, model, Document } from "mongoose";
 import { BusinessOwnerId, BranchId, ProductId } from "../types/brands.js";
 import { DecimalConfig } from "../utils/decimalConfig.js";

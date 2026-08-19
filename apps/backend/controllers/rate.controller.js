@@ -45,7 +45,17 @@ export const getDailyRate = async (req, res) => {
       return latestRate || null;
     }, 3600);
 
-    res.status(200).json({ success: true, rate: data, fromCache });
+    if (!data) {
+      return res.status(200).json({ success: true, rate: null, fromCache });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      rate: data.rate,           // String directo ("800"), no el documento entero
+      date: data.date,
+      is_manual_override: data.is_manual_override ?? false,
+      fromCache 
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

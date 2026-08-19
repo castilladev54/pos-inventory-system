@@ -17,6 +17,7 @@
     "@inventory/shared": "workspace:*",
     "@upstash/redis": "^1.37.0",
     "bcryptjs": "^2.4.3",
+    "big.js": "^7.0.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "cross-env": "^10.1.0",

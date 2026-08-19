@@ -26,6 +26,9 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
+      big.js:
+        specifier: ^7.0.1
+        version: 7.0.1
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7

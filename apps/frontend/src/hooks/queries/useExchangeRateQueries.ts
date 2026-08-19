@@ -17,7 +17,7 @@ export const exchangeRateKeys = {
 // ─── Tipos de Payload ─────────────────────────────────────────────────────────
 
 export interface SaveExchangeRatePayload {
-  rate: number;
+  rate: string;
 }
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
@@ -28,19 +28,24 @@ export function useExchangeRateQuery() {
     queryKey: exchangeRateKeys.today(),
     queryFn: async ({ signal }) => {
       const res = await API.get('/rates/today', { signal });
-      const data = res.data.rate ?? res.data;
-      if (data === null || (typeof data === 'object' && Object.keys(data).length === 0)) return null;
+      const { rate, date, is_manual_override } = res.data;
 
-      const parsed = RateSchema.safeParse(data);
-      if (!parsed.success) {
-        throw new Error(`Rate payload validation failed: ${parsed.error.message}`);
-      }
-      return parsed.data as ExchangeRate;
+      // Si no hay tasa registrada, retornar null
+      if (rate === null || rate === undefined) return null;
+
+      return {
+        _id: res.data._id ?? '',
+        customer_id: res.data.customer_id ?? '',
+        rate: String(rate),
+        date: date ?? new Date().toISOString(),
+        is_manual_override: is_manual_override ?? false,
+        createdAt: res.data.createdAt ?? '',
+      } as ExchangeRate;
     },
     staleTime: 86_400_000,       // 24 h
     gcTime: 2 * 86_400_000,      // 48 h
-    refetchOnWindowFocus: false, // Sin refetch al cambiar pestaña
-    refetchOnMount: false,       // Sin refetch al montar componente
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
     retry: 1,
   });
 }

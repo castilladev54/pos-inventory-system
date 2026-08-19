@@ -71,7 +71,7 @@ const formatUnit = (stock: number, unit_type?: string) => {
   return stock === 1 ? 'unidad' : 'unidades';
 };
 
-const buildColumns = (toBsFn: (usd: number, rate: number) => number, rate: number): DataTableColumn<Product>[] => [
+const buildColumns = (toBsFn: (usd: string, rate: string) => string, rate: number): DataTableColumn<Product>[] => [
   {
     key: 'name',
     label: 'Producto',
@@ -99,7 +99,7 @@ const buildColumns = (toBsFn: (usd: number, rate: number) => number, rate: numbe
     render: (val) => (
       <div>
         <p className="text-amber-500 font-medium text-sm sm:text-base">${Number(val).toFixed(2)}</p>
-        <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBsFn(val, rate).toFixed(2)}</p>
+        <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBsFn(String(val), String(rate))}</p>
       </div>
     ),
   },

@@ -35,7 +35,7 @@ import type { FormEvent } from "react";
 /* ─── buildHistoryColumns ────────────────────────────────── */
 const buildHistoryColumns = (
   onViewDetail: (id: SaleId) => void,
-  toBsFn: (val: number, rate: number) => number,
+  toBsFn: (val: string, rate: string) => string,
   rate: number
 ) => [
   {
@@ -87,7 +87,7 @@ const buildHistoryColumns = (
       return (
         <div>
           <div className="text-amber-500 font-medium text-sm sm:text-base">{fmtUSD(val)}</div>
-          <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBsFn(val, row.exchange_rate ?? rate).toFixed(2)}</p>
+          <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBsFn(String(val), String(row.exchange_rate ?? rate))}</p>
         </div>
       );
     },

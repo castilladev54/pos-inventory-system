@@ -10,7 +10,7 @@ export const fmtUSD = (v) => `$${Number(v || 0).toFixed(2)}`;
 import { toBs } from './currency';
 
 /** Formatea un valor numérico como precio en bolívares usando la tasa del día. */
-export const fmtBs = (v: number | string, rate: number) => `Bs ${toBs(Number(v || 0), rate).toFixed(2)}`;
+export const fmtBs = (v: number | string, rate: number | string) => `Bs ${toBs(String(v || 0), String(rate))}`;
 
 /** Calcula el subtotal de un ítem del carrito (cantidad × precio unitario). */
 export const itemSubtotal = (item) => (parseFloat(item.quantity) || 0) * item.unit_price;

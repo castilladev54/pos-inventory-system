@@ -231,7 +231,7 @@ export interface InventoryAdjustment {
 export interface ExchangeRate {
   _id: string;
   customer_id: BusinessOwnerId;
-  rate: number;
+  rate: string;
   date: string;
   is_manual_override: boolean;
   createdAt: string;
