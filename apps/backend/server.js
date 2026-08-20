@@ -11,7 +11,7 @@ import mongoose from "mongoose";
 
 // ⚠️ Optimizador de V8 para Serialización de Decimal128 (O(1) C++)
 // Evita bucles recursivos en .lean() y .aggregate() al hacer res.json()
-mongoose.Types.Decimal128.prototype.toJSON = function() {
+mongoose.Types.Decimal128.prototype.toJSON = function () {
   return this.toString();
 };
 
@@ -117,7 +117,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-branch-id", "x-worker-api-key"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-branch-id", "x-worker-api-key", "x-global-request"],
 }));
 
 // 1.5 SLA TIMEOUT (Fail Fast: corta cualquier request que exceda 1.5s)
