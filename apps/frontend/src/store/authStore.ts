@@ -85,7 +85,11 @@ export const useAuthStore = create<AuthState>()(
             } else {
               payload = emailOrCredentials;
             }
-            const res = await api.post('/api/auth/login', payload);
+            const res = await api.post('/api/auth/login', payload, {
+              headers: {
+                'x-global-request': 'true'
+              }
+            });
             if (res.data.success) {
               set({ 
                 user: res.data.user,

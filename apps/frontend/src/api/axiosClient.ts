@@ -49,12 +49,17 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const authState = useAuthStore.getState();
-    const activeBranchId = authState.activeBranchId;
     const token = authState.token;
-    
-    // Si hay una sucursal activa seleccionada y no es una solicitud explícitamente global
-    if (activeBranchId && !config.headers['x-global-request']) {
-      config.headers['x-branch-id'] = activeBranchId;
+    const isGlobalRequest = config.headers['x-global-request'];
+
+    //La única fuente de verdad debe ser la selección explícita del usuario 
+    const branchId = authState.activeBranchId
+
+    if (!isGlobalRequest) {
+      if (!branchId) {
+        return Promise.reject(new Error('CLIENT_ERROR: Falta el contexto de sucursal (x-branch-id). Transacción abortada en el frontend.'))
+      }
+      config.headers['x-branch-id'] = branchId;
     }
 
     // Inyectar el token Bearer si existe
@@ -118,19 +123,19 @@ api.interceptors.response.use(
       try {
         const res = await api.post('/api/auth/refresh');
         const newToken = res.data.token;
-        
+
         useAuthStore.getState().actions.updateToken(newToken);
         originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
-        
+
         processQueue(null, newToken);
         return api(originalRequest);
       } catch (err) {
         const axiosError = err as AxiosError;
         processQueue(axiosError, null);
-        
+
         // Purgamos la sesión
         useAuthStore.getState().actions.clearAuth();
-        
+
         // Propagar el rechazo para que TanStack Query lo capture
         return Promise.reject(axiosError);
       } finally {
@@ -141,7 +146,7 @@ api.interceptors.response.use(
     // 403 general o un 401 que falló en el refresh (ej. la ruta original ERA /refresh)
     // Regla de Oro: clearAuth() ignora los 403, permitiendo que lleguen a los componentes o caches
     if (status === 401 && originalRequest.url !== '/api/auth/refresh') {
-       useAuthStore.getState().actions.clearAuth();
+      useAuthStore.getState().actions.clearAuth();
     }
 
     // ─── CIRCUITO DE RESPUESTA: 403 Jurisdicción de Sucursal ────────────
@@ -155,7 +160,7 @@ api.interceptors.response.use(
       if (errorCode === 'ERR_BRANCH_JURISDICTION') {
         // 1. Purgar el activeBranchId corrupto de forma tipada y segura (null)
         useAuthStore.getState().actions.setActiveBranch(null);
-        
+
         // 2. Disparar callback de expulsión (main.tsx se encargará de cancelar queries y purgar)
         onUnauthorizedCb?.();
       }

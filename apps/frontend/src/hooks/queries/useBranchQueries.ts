@@ -27,7 +27,10 @@ export function useBranchesQuery() {
   return useQuery<Branch[]>({
     queryKey: branchKeys.all,
     queryFn: async ({ signal }) => {
-      const res = await api.get('/api/branches', { signal });
+      const res = await api.get('/api/branches', {
+        signal,
+        headers: { 'x-global-request': 'true' }
+      });
       const data = res.data;
       return (data.branches ?? data.data ?? (Array.isArray(data) ? data : [])) as Branch[];
     },
