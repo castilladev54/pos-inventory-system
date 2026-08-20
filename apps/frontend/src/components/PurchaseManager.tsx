@@ -37,7 +37,8 @@ import {
 import { useAllProductsForPOS } from '../hooks/queries/useProductQueries';
 import { useAuthStore } from '../store/authStore';
 import { useExchangeRateQuery } from '../hooks/queries/useExchangeRateQueries';
-import { toBs, formatDual } from '../utils/currency';
+import { toBs, formatDual, MoneyMath } from '../utils/currency';
+import { fmtUSD } from '../utils/salesFormatters';
 import type {
   Purchase,
   PurchaseId,
@@ -64,10 +65,6 @@ const createEmptyItems = (): FormItem[] => [{ ...EMPTY_ITEM }];
 /* ─── Helpers ────────────────────────────────────────────── */
 const fmtDate = (iso: string | undefined): string =>
   iso ? new Date(iso).toLocaleDateString() : 'N/A';
-const fmtCost = (val: number | string | undefined): string =>
-  `$${Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const itemSubtotal = (item: FormItem): number =>
-  (parseFloat(String(item.quantity)) || 0) * Number(item.unit_cost);
 
 /** Resuelve due_date vs dueDate (el backend guarda snake_case). */
 const getDueDate = (p: Purchase): string | undefined => p.dueDate ?? p.due_date;
@@ -246,7 +243,7 @@ const PurchaseItemRow = ({ item, index, products, onChange, onRemove, showRemove
     <div className="flex-1 lg:w-32">
       <label className="block text-xs font-medium text-gray-400 mb-1.5 ml-1">Subtotal</label>
       <div className="flex items-center h-[42px] px-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-300 font-medium whitespace-nowrap">
-        {fmtCost(itemSubtotal(item))}
+        {fmtUSD(MoneyMath.mul(String(item.quantity || 0), String(item.unit_cost || 0)))}
       </div>
     </div>
 
@@ -453,7 +450,9 @@ const PurchaseManagerInner = () => {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const { data: rateData } = useExchangeRateQuery();
-  const exchangeRate = rateData?.rate ?? 1;
+  const exchangeRateRaw = rateData?.rate;
+  const hasValidRate = exchangeRateRaw != null && exchangeRateRaw !== '' && String(exchangeRateRaw) !== 'NaN' && !MoneyMath.isZeroOrNegative(String(exchangeRateRaw));
+  const exchangeRate = hasValidRate ? String(exchangeRateRaw) : undefined;
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [viewedPurchaseId, setViewedPurchaseId] = useState<PurchaseId | null>(null);
@@ -586,6 +585,7 @@ const PurchaseManagerInner = () => {
     e.preventDefault();
     if (!supplier.trim()) return toast.error('El nombre del proveedor es requerido');
     if (items.length === 0) return toast.error('Agrega al menos un artículo');
+    if (!hasValidRate) return toast.error('Tasa de cambio no disponible. Operación bloqueada.');
     for (const item of items) {
       if (!item.product_id) return toast.error('Selecciona un producto en todos los campos');
       if (parseFloat(String(item.quantity)) <= 0) return toast.error('La cantidad debe ser mayor a 0');
@@ -627,7 +627,9 @@ const PurchaseManagerInner = () => {
     await paymentMutation.mutateAsync({ id, data: paymentData });
   };
 
-  const currentTotal = items.reduce((acc, item) => acc + itemSubtotal(item), 0);
+  const currentTotal = items.reduce((acc, item) => {
+    return MoneyMath.add(acc, MoneyMath.mul(String(item.quantity || 0), String(item.unit_cost || 0)));
+  }, "0");
   const TABS = ['Todas', 'Pendientes', 'Por Vencer', 'Vencidas'];
 
   /* ── Render ── */
@@ -812,8 +814,15 @@ const PurchaseManagerInner = () => {
             {/* Total estimado */}
             <div className="mt-8 pt-6 border-t border-white/5 flex flex-col items-end">
               <span className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-1">Costo Total Estimado</span>
-              <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
-                {fmtUSD(currentTotal)} <span className="text-sm font-normal text-gray-500"> / Bs {toBs(currentTotal, exchangeRate ?? 1).toFixed(2)}</span>
+              <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 flex items-center gap-2 flex-wrap justify-end">
+                <span>{fmtUSD(currentTotal)}</span>
+                {hasValidRate ? (
+                  <span className="text-sm font-normal text-gray-500"> / Bs {toBs(currentTotal, exchangeRate)}</span>
+                ) : (
+                  <span className="text-sm font-normal text-rose-500 flex items-center gap-1 border border-rose-500/30 bg-rose-500/10 px-2 py-1 rounded-md">
+                    <AlertCircle size={14} /> Tasa Indisponible
+                  </span>
+                )}
               </div>
             </div>
           </fieldset>
@@ -822,7 +831,7 @@ const PurchaseManagerInner = () => {
             <Button variant="secondary" type="button" onClick={closeForm} className="px-6 rounded-xl hover:bg-white/5 border-transparent">
               Cancelar
             </Button>
-            <Button variant="primary" type="submit" isLoading={createMutation.isPending} className="px-8 rounded-xl bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 border-0 flex items-center gap-2">
+            <Button variant="primary" type="submit" isLoading={createMutation.isPending} disabled={!hasValidRate} className="px-8 rounded-xl bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 border-0 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-600">
               <Check size={18} /> Confirmar Ingreso
             </Button>
           </div>
