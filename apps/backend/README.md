@@ -308,6 +308,7 @@ El orden de middlewares en `server.js` es deliberado y crítico:
 | `GET` | `/` | Ping de bienvenida |
 | `GET` | `/api/health` | Health check (uptime, sin DB) |
 | `GET` | `/favicon.ico` | 204 (ahorra invocaciones serverless) |
+| `POST` | `/api/webhooks/bcv-sync` | Sincroniza tasa BCV (protegido por API Key) |
 
 ---
 
@@ -328,6 +329,28 @@ El orden de middlewares en `server.js` es deliberado y crítico:
 ---
 
 ### Rutas Protegidas (`verifyToken` + `checkSubscription` + `injectBusinessContext`)
+
+---
+
+### 🏢 Sucursales (`/api/branches`)
+
+| Método | Ruta | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/branches` | Lista todas las sucursales |
+| `GET` | `/api/branches/:id` | Detalle de una sucursal |
+| `POST` | `/api/branches` | Crea una nueva sucursal (solo dueños/admins) |
+| `PATCH` | `/api/branches/:id` | Actualiza sucursal (solo dueños/admins) |
+| `DELETE` | `/api/branches/:id` | Elimina sucursal (soft-delete) |
+| `GET` | `/api/branches/:id/inventory` | Consulta inventario de la sucursal |
+| `PATCH` | `/api/branches/:id/inventory` | Actualiza inventario de la sucursal |
+
+---
+
+### 🔄 Transferencias (`/api/transfers`)
+
+| Método | Ruta | Descripción |
+| :--- | :--- | :--- |
+| `POST` | `/api/transfers` | Ejecuta transferencia de stock entre sucursales |
 
 ---
 
