@@ -61,10 +61,7 @@ export function useProductsQuery(page: number, limit: number, search: string, ha
   return useQuery<ProductListResponse>({
     queryKey: [...productKeys.list(activeBranchId, page, limit, search), { hasDebt }] as const,
     queryFn: async ({ signal }) => {
-      const res = await API.get(`/products?${params.toString()}`, { 
-        signal,
-        headers: { 'x-global-request': 'true' }
-      });
+      const res = await API.get(`/products?${params.toString()}`, { signal });
       const data = res.data;
       return {
         products: data.products ?? data.data ?? (Array.isArray(data) ? data : []),
@@ -87,10 +84,7 @@ export function useAllProductsForPOS() {
   return useQuery<Product[]>({
     queryKey: productKeys.posCatalog(activeBranchId),
     queryFn: async ({ signal }) => {
-      const res = await API.get('/products?page=1&limit=5000', { 
-        signal,
-        headers: { 'x-global-request': 'true' }
-      });
+      const res = await API.get('/products?page=1&limit=5000', { signal });
       const data = res.data;
       const products: Product[] = data.products ?? data.data ?? (Array.isArray(data) ? data : []);
       return products.filter((p) => p.isActive !== false);
@@ -109,10 +103,7 @@ export function useProductByBarcodeQuery(barcode: string, enabled: boolean) {
   return useQuery<ApiProductResponse>({
     queryKey: productKeys.barcode(activeBranchId, barcode),
     queryFn: async ({ signal }) => {
-      const res = await API.get(`/products/barcode/${barcode}`, { 
-        signal,
-        headers: { 'x-global-request': 'true' }
-      });
+      const res = await API.get(`/products/barcode/${barcode}`, { signal });
       return res.data as ApiProductResponse;
     },
     enabled: enabled && barcode.length >= 5,
@@ -128,9 +119,7 @@ export function useCreateProduct() {
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<ApiProductResponse, Error, CreateProductPayload>({
     mutationFn: async (payload) => {
-      const res = await API.post('/products', payload, {
-        headers: { 'x-global-request': 'true' }
-      });
+      const res = await API.post('/products', payload);
       return res.data as ApiProductResponse;
     },
     onSuccess: () => {
@@ -145,9 +134,7 @@ export function useUpdateProduct() {
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<ApiProductResponse, Error, { id: ProductId; data: UpdateProductPayload }>({
     mutationFn: async ({ id, data }) => {
-      const res = await API.put(`/products/${id}`, data, {
-        headers: { 'x-global-request': 'true' }
-      });
+      const res = await API.put(`/products/${id}`, data);
       return res.data as ApiProductResponse;
     },
     onSuccess: () => {
@@ -161,9 +148,7 @@ export function useDeleteProduct() {
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<void, Error, ProductId>({
     mutationFn: async (id) => {
-      await API.delete(`/products/${id}`, {
-        headers: { 'x-global-request': 'true' }
-      });
+      await API.delete(`/products/${id}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: productKeys.all(activeBranchId) });

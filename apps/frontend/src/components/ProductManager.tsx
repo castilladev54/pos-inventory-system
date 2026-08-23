@@ -23,6 +23,7 @@ import DataTable, { DataTableColumn } from './organisms/DataTable';
 import BarcodeScanner from './BarcodeScanner';
 import ProductSearchBar from './molecules/ProductSearchBar';
 import { RateGuard } from './pos/RateGuard';
+import { RequireBranchGuard } from './guards/RequireBranchGuard';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -525,8 +526,10 @@ const ProductManagerInner = () => {
 
 export default function ProductManager() {
   return (
-    <RateGuard>
-      <ProductManagerInner />
-    </RateGuard>
+    <RequireBranchGuard>
+      <RateGuard>
+        <ProductManagerInner />
+      </RateGuard>
+    </RequireBranchGuard>
   );
 }

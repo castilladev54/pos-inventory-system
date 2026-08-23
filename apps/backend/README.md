@@ -1,6 +1,6 @@
-# 🚀 CastillaWeb Backend — Sistema de Inventario v3.0 (TS-First)
+# 🚀 CastillaWeb Backend — Sistema de Inventario v3.0 (TS/JS Hybrid)
 
-API REST de alto rendimiento y tipado estricto construida con **Node.js**, **Express 5** y **TypeScript**, diseñada como una arquitectura SaaS multi-tenant para la gestión avanzada de inventario, facturación, sucursales, tasas de cambio e inteligencia artificial distribuida.
+API REST de alto rendimiento construida con **Node.js**, **Express 5** y una base híbrida **JavaScript/TypeScript**, diseñada como una arquitectura SaaS multi-tenant para la gestión avanzada de inventario, facturación, sucursales, tasas de cambio e inteligencia artificial distribuida. Parte del monorepo `@inventory/backend`.
 
 ---
 
@@ -9,108 +9,53 @@ API REST de alto rendimiento y tipado estricto construida con **Node.js**, **Exp
 | Capa | Tecnología | Versión | Tipo de Soporte / Definiciones |
 | :--- | :--- | :--- | :--- |
 | **Engine** | Node.js | v20+ | ESM nativo (`"type": "module"`) |
-| **Compilador** | TypeScript | v6.0.x | Estricto (`noUncheckedIndexedAccess: true`) |
+| **Ejecución y Tipos**| TypeScript / TSX | v6.0.x / v4.22.x | Transición progresiva a TS. Ejecución con `tsx` |
 | **Framework** | Express.js | v5.2.x | `@types/express` + Extensión de contexto nativa |
-| **Base de Datos** | MongoDB & Mongoose | v9.2.x | Modelos fuertemente tipados con Mongoose Documents |
+| **Base de Datos** | MongoDB & Mongoose | v9.2.x | Modelos híbridos (JS/TS) |
 | **Caché** | Upstash Redis | v1.37.x | SDK REST con tipado asíncrono nativo |
 | **Inteligencia Artificial** | Google Gemini | v1.48.x | `@google/genai` (Streaming SSE) |
 | **Validaciones** | Zod Schema Validator | v4.3.x | Inferencia estática de tipos (`z.infer<T>`) |
-| **Pruebas** | Vitest + Supertest | v4.1 / v7.2 | Tipado completo en aserciones y Mocks |
+| **Pruebas** | Vitest + Supertest | v4.1 / v7.2 | Tests híbridos JS/TS |
 
 ---
 
-## 📁 Estructura del Proyecto (100% TypeScript)
+## 📁 Estructura del Proyecto (Híbrido JS/TS)
 
 ```
 BACKEND---INVENTORY-SYSTEM/
-├── server.ts                  ← Entry point (Express 5, compilación ESM a dist/)
-├── tsconfig.json              ← Configuración estricta del compilador de TS
+├── server.js                  ← Entry point (Express 5, ejecución ESM)
+├── tsconfig.json              ← Configuración TS que extiende del monorepo
+├── package.json               ← Dependencias y scripts (tsx, vitest)
 ├── lib/
-│   ├── db.ts                  ← Conexión MongoDB Singleton + lazy-connect + concurrency guard
-│   └── redis.ts               ← Cliente Upstash Redis + getOrSetCache + sistema de versionado
-├── controllers/               ← Lógica HTTP (parámetros e inputs estrictamente tipados)
-│   ├── auth.controller.ts
-│   ├── product.controller.ts
-│   ├── category.controller.ts
-│   ├── purchase.controller.ts
-│   ├── sale.controller.ts
-│   ├── adjustment.controller.ts
-│   ├── staff.controller.ts
-│   ├── rate.controller.ts      ← Tasas de cambio USD/VES por día
-│   ├── ai.controller.ts       ← IA con SSE streaming
-│   └── branch.controller.ts   ← CRUD de sucursales e inventario por sucursal
+│   ├── db.ts                  ← Conexión MongoDB Singleton + lazy-connect
+│   └── redis.ts               ← Cliente Upstash Redis + cache versioning
+├── controllers/               ← Lógica HTTP (mezcla de .js y .ts)
 ├── services/                  ← Capa de servicios (Lógica de negocio transaccional ACID)
-│   ├── sale.service.ts
-│   ├── purchase.service.ts
-│   ├── adjustment.service.ts
-│   └── ai.service.ts
-├── models/                    ← Interfaces de Mongoose + Schemas Tipados
-│   ├── User.ts
-│   ├── Product.ts             ← Relaciones virtuales y tipado de stock consolidado
-│   ├── Category.ts
-│   ├── Sale.ts
-│   ├── SaleDetail.ts
-│   ├── Purchase.ts
-│   ├── PurchaseDetail.ts
-│   ├── InventoryAdjustment.ts
-│   ├── SupplierPayment.ts
-│   ├── ExchangeRate.ts
-│   ├── Branch.ts
-│   └── BranchInventory.ts
-├── middleware/                ← Pipeline de seguridad y manipulación de tipos de Request
-│   ├── verifyToken.ts
-│   ├── checkSubscription.ts
-│   ├── requirePermission.ts   ← Control estricto de roles y sucursales
-│   ├── rateLimiter.ts
-│   ├── sanitize.ts
-│   ├── sla.middleware.ts      ← Timeout de 1.5s (fail-fast serverless)
-│   ├── errorHandler.ts        ← Formateador y traductor de errores TS/Zod/Mongoose
-│   ├── validate.ts            ← Middleware genérico para esquemas Zod
-│   └── cache.middleware.ts    ← Interceptor de caché con firma de respuestas
-├── routes/                    ← Módulos de rutas Express tipados
-├── validations/               ← Esquemas Zod que nutren la inferencia de TypeScript (7 archivos)
-├── types/                     ← Tipado estricto global y Nominal Branding
-│   ├── brands.ts              ← Nominal types para IDs de negocio y actores
-│   └── express.d.ts           ← Extensión de la interfaz de Express Request
-├── tests/                     ← Suite de pruebas unitarias e integración en TS (15 archivos)
-│   └── *.test.ts
-├── utils/                     ← Helpers (JWT, timezone VE, etc.)
-├── mailtrap/                  ← Templates de email
-├── Dockerfile                 ← Multi-stage build para TypeScript (tsc -> dist/)
-├── docker-compose.yml
-└── vercel.json
+├── models/                    ← Modelos Mongoose (mezcla de .js y .ts)
+├── middleware/                ← Pipeline de seguridad y middleware
+├── routes/                    ← Módulos de rutas Express
+├── validations/               ← Esquemas Zod
+├── types/                     ← Tipado estricto global
+├── tests/                     ← Suite de pruebas unitarias e integración (.test.js / .test.ts)
+├── Dockerfile                 ← Construcción de imagen de producción
+└── docker-compose.yml
 ```
 
 ---
 
 ## ⚙️ Configuración del Compilador (tsconfig.json)
 
-Para asegurar la máxima robustez en tiempo de compilación y producción, el compilador está configurado bajo los estándares de ingeniería de software más restrictivos:
+El proyecto se encuentra en un monorepo y extiende la configuración base. Actualmente soporta tanto archivos `.ts` como `.js`.
 
 ```json
 {
+  "extends": "../../packages/tsconfig/node.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "outDir": "./dist",
     "rootDir": "./",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "typeRoots": ["./node_modules/@types", "./types"]
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "dist", "tests/**/*.test.ts"]
+  "include": ["**/*.ts", "**/*.js"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }
 ```
 
@@ -119,15 +64,16 @@ Para asegurar la máxima robustez en tiempo de compilación y producción, el co
 ## 📦 Instalación y Ciclo de Vida del Desarrollo
 
 ### 1. Inicializar Dependencias
+Al estar en un monorepo (pnpm workspace), la instalación se hace desde la raíz o con el filtro adecuado:
 ```bash
 pnpm install
 ```
 
 ### 2. Configurar variables de entorno
-Crea un archivo `.env` en la raíz del proyecto basándote en la siguiente plantilla:
+Crea un archivo `.env` en la raíz de `apps/backend` basándote en la siguiente plantilla:
 
 ```env
-PORT=5000
+PORT=3000
 NODE_ENV=development
 MONGO_URI=mongodb+srv://...
 JWT_SECRET=tu_secreto_muy_seguro
@@ -140,22 +86,19 @@ MAILTRAP_SENDER_EMAIL=noreply@tudominio.com
 WORKER_API_KEY=tu_api_key_del_webhook
 ```
 
-### 3. Scripts de TypeScript
+### 3. Scripts de Desarrollo (package.json)
 ```bash
-# Compilar el código TypeScript a JavaScript de producción (directorio /dist)
-pnpm run build
-
-# Levantar servidor en producción (usa el código compilado en dist/)
-pnpm start
-
-# Levantar servidor en entorno de desarrollo con recarga en caliente instantánea
+# Levantar servidor en entorno de desarrollo con recarga en caliente (usando tsx)
 pnpm run dev
 
-# Correr la suite de pruebas unitarias e integración en TypeScript
+# Levantar servidor en producción
+pnpm start
+
+# Correr la suite de pruebas
 pnpm run test
 ```
 
-> ⚠️ **Nota de Entorno de Pruebas:** Vitest se ejecuta con la bandera `fileParallelism: false` para evitar colisiones de puertos con el servidor virtual de bases de datos en memoria (`MongoMemoryReplSet`), requerido para probar transacciones ACID.
+> ⚠️ **Nota de Entorno de Pruebas:** Los tests se ejecutan con Vitest y `mongodb-memory-server`. Se utiliza la variable `MONGOMS_VERSION` para compatibilidad.
 
 ---
 
@@ -251,42 +194,47 @@ try {
 
 ---
 
-## 📈 Tabla Comparativa: Beneficios de la Migración a TypeScript
+## 📈 Beneficios de la Migración progresiva a TypeScript
 
-| Característica | Enfoque Anterior (JavaScript) | Enfoque Actual (TypeScript Estricto) | Impacto de Ingeniería |
-| :--- | :--- | :--- | :--- |
-| **Validación de Datos** | En tiempo de ejecución (Zod). Posibles inconsistencias internas de código. | Compilación estricta + Inferencia estática de tipos de esquemas Zod en servicios. | Eliminación del 98% de errores `TypeError` y propiedades `undefined` en producción. |
-| **Aislamiento Multi-tenant** | Filtros de base de datos manuales basados en strings genéricos (`req.userId`). | Nominal Branding en identificadores de MongoDB (`BusinessOwnerId` contra `ActorId`). | Es imposible a nivel de compilación cruzar IDs de configuración entre inquilinos. |
-| **Seguridad de Caché** | Llamadas con arrays genéricos propensas a errores de firmas vacías en tiempo de ejecución. | Type Guard personalizado `isNonEmptyArray` para firmas variádicas en `unlink`. | Garantía estática de compilación de que nunca se invocará un comando de caché vacío. |
-| **Transacciones ACID** | Sesiones de Mongoose controladas por paso manual de referencias implícitas. | Interfaces estrictas de sesión (`ClientSession`) pasadas de forma recursiva a servicios. | Integridad de datos asegurada. Errores de sesiones no asociadas son detectados por TS. |
-| **Mantenimiento de APIs** | Cambios en modelos requerían auditorías manuales de toda la estructura de controllers. | Refactorización guiada por el compilador. Cualquier cambio en esquemas rompe el build. | Despliegue seguro con validaciones automáticas antes del Build final. |
+El backend se encuentra en una migración progresiva de JS a TS, lo cual permite:
+- Eliminación de errores `TypeError` y propiedades `undefined` en las áreas ya migradas.
+- **Aislamiento Multi-tenant**: Nominal Branding en identificadores.
+- **Seguridad de Caché**: Type Guards personalizados.
+- **Transacciones ACID**: Interfaces estrictas de sesión.
 
 ---
 
 ## 🐳 Despliegue y Construcción en Docker (Producción)
 
-El proceso de construcción de contenedores utiliza un flujo de trabajo Multi-stage para compilar el código TypeScript y empaquetar únicamente el código JavaScript optimizado en producción dentro de un contenedor no-root de alta seguridad:
+El proceso de construcción de contenedores asume el contexto del monorepo y ejecuta directamente mediante Node.js:
 
 ```dockerfile
-# Stage 1: Build
+# Stage 1: Build (Dependencies)
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package.json pnpm-lock.yaml tsconfig.json ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
-COPY . .
-RUN pnpm run build
+RUN corepack enable
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/backend/package.json ./apps/backend/
+RUN pnpm install --frozen-lockfile --filter @inventory/backend...
+COPY packages/shared/ ./packages/shared/
+COPY apps/backend/ ./apps/backend/
 
 # Stage 2: Runner (Producción)
-FROM node:20-alpine AS runner
+FROM node:20-alpine AS production
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
-ENV NODE_ENV=production
-COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/backend ./apps/backend
+RUN rm -rf apps/backend/tests/ apps/backend/.github/ apps/backend/scripts/
 
-USER node
-EXPOSE 5000
-CMD ["node", "dist/server.js"]
+ENV NODE_ENV=production
+ENV PORT=3000
+USER appuser
+EXPOSE 3000
+WORKDIR /app/apps/backend
+CMD ["node", "server.js"]
 ```
 ---
 

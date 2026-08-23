@@ -129,31 +129,25 @@ Toda modificación que afecte a múltiples colecciones se realiza dentro de tran
 - **Ventas**: Descuenta stock de productos, genera el registro de venta y la auditoría.
 - **Cancelaciones**: Devuelve el stock físico a los artículos e invalida la venta.
 - **Compras**: Inserta registros de compra, incrementa el stock físico de múltiples productos y recalcula automáticamente el **Costo Promedio Ponderado** (`av_inventory_cost`) de cada ítem.
-- **Control de Ajustes (Kardex)**: Permite registrar variaciones manuales (mermas, robos, etc.), compartiendo la sesión de transacción si es invocado por la creación de un nuevo producto.
-
----
-
-## 📊 Módulos Clave del Sistema
-
-### 1. Punto de Venta (TPV/POS)
-El componente principal [SalesManager.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/SalesManager.tsx) gestiona toda la facturación:
-- **Carrito Deslizante**: El componente [CartDrawer.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/pos/CartDrawer.tsx) permite visualizar artículos en el carrito, actualizar cantidades (admite enteros y fracciones para productos pesados/medidos a granel, ej. `1.5 kg`) y procesar cobros.
-- **Teclado POS Acelerado**: El custom hook [usePOSKeyboard.ts](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/hooks/usePOSKeyboard.ts) define atajos rápidos (detallados en [HelpModal.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/pos/HelpModal.tsx)).
-- **Filtros Históricos**: [useSalesFilters.ts](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/hooks/useSalesFilters.ts) provee filtros por vendedor, método de pago y rangos de fechas.
+- **Con### 1. Punto de Venta (TPV/POS)
+El componente principal `SalesManager.tsx` gestiona toda la facturación:
+- **Carrito Deslizante**: El componente `CartDrawer.tsx` permite visualizar artículos en el carrito, actualizar cantidades (admite enteros y fracciones para productos pesados/medidos a granel, ej. `1.5 kg`) y procesar cobros.
+- **Teclado POS Acelerado**: El custom hook `usePOSKeyboard.ts` define atajos rápidos (detallados en `HelpModal.tsx`).
+- **Filtros Históricos**: `useSalesFilters.ts` provee filtros por vendedor, método de pago y rangos de fechas.
 
 ### 2. Gestión de Inventarios y Categorías
-- **Control de Productos**: El componente [ProductManager.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/ProductManager.tsx) permite registrar artículos asignando tipos de unidad (`kg`, `litro`, `metro`, `unidad`).
+- **Control de Productos**: El componente `ProductManager.tsx` permite registrar artículos asignando tipos de unidad (`kg`, `litro`, `metro`, `unidad`).
 - **Auditoría de Ajuste**: Cuando se modifica físicamente el stock, el sistema requiere de forma obligatoria seleccionar un motivo (mermas, robos, vencimientos, corrección de inventario) que se registra en el Kardex.
-- **Categorías Taxonómicas**: Controladas desde [CategoryManager.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/CategoryManager.tsx). El backend impide borrar una categoría si tiene productos asociados.
+- **Categorías Taxonómicas**: Controladas desde `CategoryManager.tsx`. El backend impide borrar una categoría si tiene productos asociados.
 
 ### 3. Registro de Compras y Cuentas por Pagar (Supplier Manager)
-Control integral de los ingresos de inventario administrado por [PurchaseManager.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/PurchaseManager.tsx):
+Control integral de los ingresos de inventario administrado por `PurchaseManager.tsx`:
 - **Cuentas por Pagar**: Controla estados de deuda con proveedores (`Pagado`, `Vencida`, `Parcial`, `Pendiente`).
 - **Abonos Parciales**: Permite ir saldando facturas de compras paulatinamente mediante registro de pagos en USD.
 - **Cronograma de Vencimientos**: Alertas automáticas para facturas con vencimientos próximos (rango de 7 días).
 
 ### 4. Copiloto de Inteligencia Artificial (E2E)
-El módulo [AiChatWindow.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/organisms/AiChatWindow.tsx) ofrece una herramienta de análisis gerencial en tiempo real:
+El módulo `AiChatWindow.tsx` ofrece una herramienta de análisis gerencial en tiempo real:
 - **Respuestas por Streaming (SSE)**: Utiliza `Server-Sent Events` para recibir y renderizar la respuesta del bot en tiempo real, palabra por palabra, mediante la API de streams.
 - **Extracción de Contexto en Paralelo**: Al hacer una pregunta, el backend ejecuta consultas asíncronas en paralelo (con un timeout máximo de 8 segundos y caché en Redis de 3 minutos) para recopilar:
   - Stock crítico (menos de 5 unidades).
@@ -165,18 +159,20 @@ El módulo [AiChatWindow.tsx](file:///c:/Users/Consultorio/Documents/proyectosCa
 - **System Prompt v2**: Prioriza alertas de deudas/stock crítico, estructura la respuesta en un máximo de 200 palabras utilizando markdown y sugiere siempre una acción ejecutable y concreta.
 
 ### 5. Tasa de Cambio Multidivisa (USD / VES)
-El componente [ExchangeRateBar.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/pos/ExchangeRateBar.tsx) se conecta al [currencyStore.ts](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/store/currencyStore.ts) para obtener la tasa del día:
+El componente `ExchangeRateBar.tsx` se conecta al `currencyStore.ts` para obtener la tasa del día:
 - **Tasa Única Diaria**: El backend implementa un índice compuesto único `{ customer_id: 1, date: 1 }` en el modelo `ExchangeRate`, garantizando una sola tasa registrada por negocio al día.
 - **Timezone VE**: Se calcula el inicio del día en huso horario de Venezuela (UTC-4) para registrar la tasa antes de persistir en MongoDB.
 - **Totales Duales**: Permite al POS mostrar subtotales, impuestos y totales convertidos instantáneamente entre USD y Bolívares (VES).
 
 ### 6. Control de Personal y Desempeño
-La pestaña controlada por [StaffManager.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/StaffManager.tsx) maneja al equipo:
+La pestaña controlada por `StaffManager.tsx` maneja al equipo:
 - **Edición de Permisos**: Habilita o deshabilita accesos sobre la marcha (`pos_access`, `inventory_access`, etc.).
 - **Analíticas de Rendimiento (`salesStats`)**: El backend calcula de manera agregada mediante consultas de base de datos la cantidad de transacciones cerradas y el monto acumulado en USD facturado por cada cajero.
 
 ### 7. Analíticas de Ganancia Neta
-Representado en [AnalyticsManager.tsx](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/components/AnalyticsManager.tsx):
+Representado en `AnalyticsManager.tsx`:
+- **Gráficas Comparativas**: `Recharts` muestra la curva diaria de ingresos vs costos operativos (Compras).
+- **Flujo de Caja**: Gráfico de barras interactivo con colorimetría condicional (naranja para rentabilidad positiva, rojo para pérdidas).omponents/AnalyticsManager.tsx):
 - **Gráficas Comparativas**: `Recharts` muestra la curva diaria de ingresos vs costos operativos (Compras).
 - **Flujo de Caja**: Gráfico de barras interactivo con colorimetría condicional (naranja para rentabilidad positiva, rojo para pérdidas).
 
@@ -210,15 +206,17 @@ El sistema soporta dos modalidades de escaneo simultáneas:
 
 ## 📂 Arquitectura de Estado Global (Zustand Stores)
 
-El estado asincrónico del frontend se descentraliza en múltiples almacenes ligeros con persistencia selectiva:
+El estado asincrónico del frontend se descentraliza en múltiples almacenes ligeros con persistencia selectiva (ubicados en `src/store/`):
 
-- **[authStore.ts](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/store/authStore.ts)**: Control de usuario, token de verificación, creación administrativa y purga dura de almacenamiento local al cerrar sesión.
-- **[productStore.js](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/store/productStore.js)**: CRUD de productos, filtrados avanzados y obtención por código de barras.
-- **[categoryStore.js](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/store/categoryStore.js)**: Gestión taxonómica.
-- **[purchaseStore.js](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/store/purchaseStore.js)**: Transacciones con proveedores y pagos de deuda.
-- **[saleStore.js](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/store/saleStore.js)**: Control de ventas, anulaciones y recargas de stock asociadas.
-- **[staffStore.js](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/store/staffStore.js)**: Gestión de cajeros, asignación de permisos y estadísticas.
-- **[currencyStore.ts](file:///c:/Users/Consultorio/Documents/proyectosCarlos/Dashboard-React-Tailwindcss/frontend/src/store/currencyStore.ts)**: Sincronización y persistencia local de tasa cambiaria diaria (Bs/USD).
+- **authStore.ts**: Control de usuario, token de verificación, creación administrativa y purga dura de almacenamiento local al cerrar sesión.
+- **productStore.js**: CRUD de productos, filtrados avanzados y obtención por código de barras.
+- **categoryStore.js**: Gestión taxonómica.
+- **purchaseStore.js**: Transacciones con proveedores y pagos de deuda.
+- **saleStore.js**: Control de ventas, anulaciones y recargas de stock asociadas.
+- **staffStore.js**: Gestión de cajeros, asignación de permisos y estadísticas.
+- **currencyStore.ts**: Sincronización y persistencia local de tasa cambiaria diaria (Bs/USD).
+- **cartStore.ts**: Estado del carrito de compras en el POS.
+- **uiStore.ts**: Estados globales de interfaz de usuario.
 
 ---
 
@@ -256,56 +254,46 @@ A continuación se detallan los endpoints del backend que consume el frontend:
 
 ---
 
-## 🛠️ Instalación y Configuración del Entorno de Desarrollo
+## 🛠️ Instalación y Configuración del Entorno de Desarrollo (Monorepo)
 
-Para ejecutar el ecosistema completo en tu entorno local, sigue las siguientes instrucciones:
+Este proyecto está estructurado como un monorepo utilizando **pnpm workspaces**. Para ejecutar el ecosistema completo en tu entorno local, sigue las siguientes instrucciones:
 
-### 1. Clonar y Configurar Sibling Directories
-Asegúrate de tener la estructura de carpetas hermana:
+### 1. Estructura del Monorepo
+La estructura base del proyecto contiene las aplicaciones de frontend y backend:
+```text
+PostVentasCw/
+├── apps/
+│   ├── backend/    ← Backend API (Express)
+│   └── frontend/   ← Frontend (Vite + React)
+├── packages/       ← Paquetes compartidos (@inventory/shared)
+└── pnpm-workspace.yaml
 ```
-proyectosCarlos/
-├── BACKEND---INVENTORY-SYSTEM/     ← Backend API
-└── Dashboard-React-Tailwindcss/    ← Frontend (este repositorio)
+
+### 2. Configuración Global
+Desde la raíz del proyecto, instala todas las dependencias del monorepo:
+```bash
+pnpm install
 ```
 
-### 2. Configuración del Backend (`BACKEND---INVENTORY-SYSTEM`)
-1. Navega a la carpeta del backend e instala las dependencias:
+### 3. Configuración del Backend
+1. Crea un archivo `.env` en `apps/backend` (puedes basarte en `.env.example`).
+2. Lanza el backend en modo desarrollo:
    ```bash
-   cd ../BACKEND---INVENTORY-SYSTEM
-   npm install
+   pnpm --filter @inventory/backend run dev
    ```
-2. Crea un archivo `.env` en la raíz del backend con las siguientes variables:
-   ```env
-   PORT=5000
-   MONGO_URI=mongodb:
-   JWT_SECRET=
-   CLIENT_URL=http://localhost:5173
-   NODE_ENV=development
-   GEMINI_API_KEY=tu_api_key_de_google_ai_studio
-   REDIS_URL=tu_conexion_redis_upstash
-   REDIS_TOKEN=tu_token_redis_upstash
-   ```
-3. Lanza el backend en desarrollo:
-   ```bash
-   npm run dev
-   ```
-   *El backend correrá en `http://localhost:5000`.*
+   *El backend correrá en el puerto configurado (ej: `http://localhost:3000`).*
 
-### 3. Configuración del Frontend (`Dashboard-React-Tailwindcss/frontend`)
-1. Regresa a la carpeta del frontend:
-   ```bash
-   cd ../Dashboard-React-Tailwindcss/frontend
-   ```
-2. Crea un archivo `.env` en la raíz del frontend (carpeta `frontend/`) para configurar las variables de entorno del cliente:
+### 4. Configuración del Frontend
+1. Crea un archivo `.env` en `apps/frontend` con:
    ```env
-   VITE_API_URL=http://localhost:5000
+   VITE_API_URL=http://localhost:3000
    ```
-3. Instala las dependencias y corre el servidor de desarrollo local:
+   *(Asegúrate de que el puerto coincida con el backend).*
+2. Lanza el frontend en modo desarrollo:
    ```bash
-   npm install
-   npm run dev
+   pnpm --filter @inventory/frontend run dev
    ```
-   *El frontend estará disponible en `http://localhost:5173` y se comunicará automáticamente con la API en el puerto `5000` enviando credenciales y cookies correspondientes.*
+   *El frontend estará disponible en `http://localhost:5173`.*
 
 ---
 
