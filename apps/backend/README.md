@@ -129,7 +129,7 @@ declare global {
     interface Request {
       userId: BusinessOwnerId;       // ID del dueño del negocio (tenant aislado)
       realUserId: ActorId;           // ID real del actor ejecutando la acción
-      userRole: 'admin' | 'customer' | 'employee';
+      userRole: 'admin' | 'TENANT_OWNER' | 'employee';
       userPermissions: string[];
       branchId?: string;             // Sucursal asignada en caso de empleados
     }
@@ -248,7 +248,7 @@ Cada negocio es un **tenant aislado**. Los datos nunca se mezclan entre negocios
 | Rol | Descripción | Permisos |
 | :--- | :--- | :--- |
 | `admin` | Super-administrador del SaaS | Crear usuarios, purgar cuentas en cascada |
-| `customer` | Dueño del negocio (paga suscripción) | Acceso total a los datos de su negocio |
+| `TENANT_OWNER` | Dueño del negocio (paga suscripción) | Acceso total a los datos de su negocio |
 | `employee` | Empleado del dueño | Solo ve sus propias ventas del día actual |
 
 ### Pipeline de Identidad por Request
