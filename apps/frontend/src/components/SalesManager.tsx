@@ -22,6 +22,7 @@ import SalePOSForm from "./pos/SalePOSForm";
 import EditSaleModal from "./pos/EditSaleModal";
 import CashShiftManagerModal from "./pos/CashShiftManagerModal";
 import { RateGuard } from "./pos/RateGuard";
+import { RequireBranchGuard } from "./guards/RequireBranchGuard";
 
 import { usePOSCart } from "../hooks/usePOSCart";
 import { useSalesFilters, DATE_FILTER_OPTIONS } from "../hooks/useSalesFilters";
@@ -802,8 +803,10 @@ const SalesManagerInner = () => {
 
 export default function SalesManager() {
   return (
-    <RateGuard>
-      <SalesManagerInner />
-    </RateGuard>
+    <RequireBranchGuard>
+      <RateGuard>
+        <SalesManagerInner />
+      </RateGuard>
+    </RequireBranchGuard>
   );
 }

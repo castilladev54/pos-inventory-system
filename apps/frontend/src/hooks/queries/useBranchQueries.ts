@@ -45,7 +45,9 @@ export function useCreateBranch() {
   const qc = useQueryClient();
   return useMutation<Branch, Error, CreateBranchPayload>({
     mutationFn: async (payload) => {
-      const res = await api.post('api/branches', payload);
+      const res = await api.post('api/branches', payload, {
+        headers: { 'x-global-request': 'true' }
+      });
       return (res.data.branch ?? res.data.data ?? res.data) as Branch;
     },
     onSuccess: () => {

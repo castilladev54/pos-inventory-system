@@ -49,23 +49,27 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const authState = useAuthStore.getState();
-    const token = authState.token;
-    const isGlobalRequest = config.headers['x-global-request'];
-
-    //La única fuente de verdad debe ser la selección explícita del usuario 
-    const branchId = authState.activeBranchId
-
-    if (!isGlobalRequest) {
-      if (!branchId) {
-        return Promise.reject(new Error('CLIENT_ERROR: Falta el contexto de sucursal (x-branch-id). Transacción abortada en el frontend.'))
-      }
-      config.headers['x-branch-id'] = branchId;
-    }
+    const { activeBranchId, token } = authState;
 
     // Inyectar el token Bearer si existe
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+
+    // 1. Contrato explícito: La consulta declaró su naturaleza global
+    if (config.headers['x-global-request'] === 'true' || config.headers['x-global-request']) {
+      return config;
+    }
+
+    // 2. Bloqueo estricto: Cero suposiciones
+    if (!activeBranchId) {
+      return Promise.reject(
+        new Error("CLIENT_ERROR: Falta el contexto de sucursal (x-branch-id). Transacción abortada en el frontend.")
+      );
+    }
+
+    // 3. Inyección local
+    config.headers['x-branch-id'] = activeBranchId;
 
     return config;
   },
@@ -98,12 +102,12 @@ api.interceptors.response.use(
 
             // 🚨 PROTECCIÓN DE ENVENENAMIENTO DE CACHÉ Y RACE CONDITIONS
             if (signal?.aborted) {
-              reject(new axios.Cancel('Request aborted before refresh completed'));
+              reject(new axios.CanceledError('Request aborted before refresh completed'));
               return;
             }
 
             signal?.addEventListener('abort', () => {
-              reject(new axios.Cancel('Request aborted during token refresh'));
+              reject(new axios.CanceledError('Request aborted during token refresh'));
               // 🔥 Previene la fuga de memoria retirando la promesa muerta de la cola
               failedQueue = failedQueue.filter(item => item !== entry);
             }, { once: true });

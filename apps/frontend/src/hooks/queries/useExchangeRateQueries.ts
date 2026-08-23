@@ -27,7 +27,10 @@ export function useExchangeRateQuery() {
   return useQuery<ExchangeRate | null>({
     queryKey: exchangeRateKeys.today(),
     queryFn: async ({ signal }) => {
-      const res = await API.get('/rates/today', { signal });
+      const res = await API.get('/rates/today', { 
+        signal,
+        headers: { 'x-global-request': 'true' }
+      });
       const { rate, date, is_manual_override } = res.data;
 
       // Si no hay tasa registrada, retornar null

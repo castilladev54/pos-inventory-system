@@ -39,7 +39,10 @@ export function useCategoriesQuery(page = 1, limit = 10) {
   return useQuery<CategoryListResponse>({
     queryKey: categoryKeys.list(page, limit),
     queryFn: async ({ signal }) => {
-      const res = await API.get(`/categories?page=${page}&limit=${limit}`, { signal });
+      const res = await API.get(`/categories?page=${page}&limit=${limit}`, { 
+        signal,
+        headers: { 'x-global-request': 'true' }
+      });
       const data = res.data;
       return {
         categories: data.categories ?? data.data ?? (Array.isArray(data) ? data : []),
@@ -57,7 +60,10 @@ export function useAllCategoriesQuery() {
   return useQuery<Category[]>({
     queryKey: categoryKeys.catalog(),
     queryFn: async ({ signal }) => {
-      const res = await API.get('/categories?page=1&limit=500', { signal });
+      const res = await API.get('/categories?page=1&limit=500', { 
+        signal,
+        headers: { 'x-global-request': 'true' }
+      });
       const data = res.data;
       return (data.categories ?? data.data ?? (Array.isArray(data) ? data : [])) as Category[];
     },
@@ -71,7 +77,9 @@ export function useCreateCategory() {
   const qc = useQueryClient();
   return useMutation<Category, Error, CreateCategoryPayload>({
     mutationFn: async (payload) => {
-      const res = await API.post('/categories', payload);
+      const res = await API.post('/categories', payload, {
+        headers: { 'x-global-request': 'true' }
+      });
       return (res.data.category ?? res.data) as Category;
     },
     onSuccess: () => {
@@ -84,7 +92,9 @@ export function useUpdateCategory() {
   const qc = useQueryClient();
   return useMutation<Category, Error, { id: CategoryId; data: UpdateCategoryPayload }>({
     mutationFn: async ({ id, data }) => {
-      const res = await API.put(`/categories/${id}`, data);
+      const res = await API.put(`/categories/${id}`, data, {
+        headers: { 'x-global-request': 'true' }
+      });
       return (res.data.category ?? res.data) as Category;
     },
     onSuccess: () => {
@@ -97,7 +107,9 @@ export function useDeleteCategory() {
   const qc = useQueryClient();
   return useMutation<void, Error, CategoryId>({
     mutationFn: async (id) => {
-      await API.delete(`/categories/${id}`);
+      await API.delete(`/categories/${id}`, {
+        headers: { 'x-global-request': 'true' }
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: categoryKeys.all });
