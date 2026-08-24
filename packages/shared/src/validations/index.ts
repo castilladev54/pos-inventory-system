@@ -16,6 +16,7 @@ import {
   ADJUSTMENT_REASONS_BACKEND,
   STOCK_CORRECTION_REASONS,
 } from '../types/index.js';
+import { zNominalId } from './common.js';
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ export type UpdateSaleDTO = z.infer<typeof updateSaleBodySchema>;
 // ─── COMPRAS ────────────────────────────────────────────────────────────────
 
 export const purchaseItemSchema = z.object({
-  product_id: z.string().regex(OBJECT_ID_REGEX, 'Invalid Product ID format'),
+  product_id: zNominalId<'ProductId'>(),
   quantity: numericString,
   unit_cost: numericString,
 });
@@ -154,6 +155,10 @@ export const createPurchaseBodySchema = z.object({
   exchange_rate: numericString.optional(),
 });
 export type CreatePurchaseDTO = z.infer<typeof createPurchaseBodySchema>;
+
+export const purchaseHeaderSchema = z.object({
+  'x-branch-id': zNominalId<'BranchId'>()
+});
 
 // ─── AJUSTES DE INVENTARIO ──────────────────────────────────────────────────
 
