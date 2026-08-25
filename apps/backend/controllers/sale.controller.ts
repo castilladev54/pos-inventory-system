@@ -17,6 +17,7 @@ import {
   updateSaleProcess
 } from '../services/sale.service.js';
 import { BranchId } from '../types/brands.js';
+import { withTransactionRetry } from '../utils/transaction-retry.js';
 
 // Venezuela = UTC-4. El backend corre en UTC (Vercel).
 // Sin esta corrección, setHours(0,0,0,0) pondría la medianoche en UTC,
@@ -71,7 +72,9 @@ export const createSale = async (req: Request, res: Response): Promise<any> => {
       }
     }
 
-    const sale = await createSaleProcess(ownerId, soldBy, branchId, items, payment_method, exchange_rate);
+    const sale = await withTransactionRetry(() => 
+      createSaleProcess(ownerId, soldBy, branchId, items, payment_method, exchange_rate)
+    );
 
     // Invalidar caché paginada de ventas y productos
     const keysToInvalidate: string[] = [];
@@ -282,7 +285,9 @@ export const cancelSale = async (req: Request, res: Response): Promise<void> => 
 
     const ownerId = req.businessOwnerId;
 
-    const cancelledSale = await cancelSaleProcess(id as string, ownerId);
+    const cancelledSale = await withTransactionRetry(() => 
+      cancelSaleProcess(id as string, ownerId)
+    );
 
     // Invalidar caché (ventas, productos y la venta específica)
     await Promise.all([
@@ -314,7 +319,9 @@ export const updateSale = async (req: Request, res: Response): Promise<void> => 
     const ownerId = req.businessOwnerId;
 
     // El servicio transaccional maneja stock, SaleDetails y campos simples en una sola sesión ACID
-    const updatedSale = await updateSaleProcess(id as string, ownerId, { items, payment_method });
+    const updatedSale = await withTransactionRetry(() => 
+      updateSaleProcess(id as string, ownerId, { items, payment_method })
+    );
 
     // Invalidar caché de ventas, productos (si hubo cambios de stock) y la venta individual
     await Promise.all([
