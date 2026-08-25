@@ -124,10 +124,10 @@ const SaleDetailView = ({
                     {item.quantity} {unitLabel}
                   </td>
                   <td className="px-6 py-3 text-gray-300">{fmtUSD(item.unit_price)}</td>
-                  <td className="px-6 py-3 text-blue-400">{fmtBs(item.unit_price, histToBs)}</td>
+                  <td className="px-6 py-3 text-blue-400">{fmtBs(item.unit_price, sale.exchange_rate)}</td>
                   <td className="px-6 py-3">
                     <div className="text-amber-500 font-medium">{fmtUSD(sub)}</div>
-                    <div className="text-xs text-blue-400">{fmtBs(sub, histToBs)}</div>
+                    <div className="text-xs text-blue-400">{fmtBs(sub, sale.exchange_rate)}</div>
                   </td>
                 </tr>
               );

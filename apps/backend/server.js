@@ -117,7 +117,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-branch-id", "x-worker-api-key", "x-global-request"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-branch-id", "x-worker-api-key", "x-global-request", "x-idempotency-key"],
 }));
 
 // 1.5 SLA TIMEOUT (Fail Fast: corta cualquier request que exceda 1.5s)

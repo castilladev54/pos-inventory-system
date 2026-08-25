@@ -1,4 +1,4 @@
-import axios, { InternalAxiosRequestConfig, AxiosError } from 'axios';
+import axios, { InternalAxiosRequestConfig, AxiosError, GenericAbortSignal } from 'axios';
 import { useAuthStore } from '../store/authStore';
 
 declare module 'axios' {
@@ -14,7 +14,7 @@ let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value: string) => void;
   reject: (reason: AxiosError) => void;
-  signal?: AbortSignal;
+  signal?: GenericAbortSignal;
 }> = [];
 
 const processQueue = (error: AxiosError | null, token: string | null = null) => {
@@ -106,7 +106,7 @@ api.interceptors.response.use(
               return;
             }
 
-            signal?.addEventListener('abort', () => {
+            signal?.addEventListener?.('abort', () => {
               reject(new axios.CanceledError('Request aborted during token refresh'));
               // 🔥 Previene la fuga de memoria retirando la promesa muerta de la cola
               failedQueue = failedQueue.filter(item => item !== entry);

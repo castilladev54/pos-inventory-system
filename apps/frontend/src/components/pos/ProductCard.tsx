@@ -11,7 +11,7 @@ interface ProductCardProps {
   product: PosProduct;
   cartQty: number;
   onAdd: (product: PosProduct) => void;
-  toBs: (usdAmount: number) => number;
+  exchangeRate: number;
 }
 
 /**
@@ -19,7 +19,7 @@ interface ProductCardProps {
  * Clickeable: agrega el producto al carrito al hacer clic o Enter.
  * Muestra badge de stock, precio y estado de vencimiento si aplica.
  */
-const ProductCard = ({ product, cartQty, onAdd, toBs }: ProductCardProps) => {
+const ProductCard = ({ product, cartQty, onAdd, exchangeRate }: ProductCardProps) => {
   const expInfo = getExpirationInfo(product.expiration_date);
   return (
     <div
@@ -46,7 +46,7 @@ const ProductCard = ({ product, cartQty, onAdd, toBs }: ProductCardProps) => {
           {product.name}{product.unit_type && product.unit_type !== 'unidad' ? ` (${product.unit_type})` : ''}
         </h4>
         <div className="flex justify-between items-end mt-auto">
-          <span className="text-[10px] sm:text-xs text-blue-400 font-medium">{fmtBs(product.price, toBs)}</span>
+          <span className="text-[10px] sm:text-xs text-blue-400 font-medium">{fmtBs(product.price, exchangeRate)}</span>
           <span className="text-orange-500 font-bold text-base sm:text-lg leading-none">{fmtUSD(product.price)}</span>
         </div>
         {/* Badge de fecha de vencimiento — solo se muestra si el backend envía expiration_date */}

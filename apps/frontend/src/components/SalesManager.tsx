@@ -36,7 +36,7 @@ import type { FormEvent } from "react";
 /* ─── buildHistoryColumns ────────────────────────────────── */
 const buildHistoryColumns = (
   onViewDetail: (id: SaleId) => void,
-  toBsFn: (val: string, rate: string) => string,
+  toBsFn: (val: string, rate: number) => string,
   rate: number
 ) => [
   {
@@ -87,8 +87,8 @@ const buildHistoryColumns = (
     render: (val: number, row: Sale) => {
       return (
         <div>
-          <div className="text-amber-500 font-medium text-sm sm:text-base">{fmtUSD(val)}</div>
-          <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBsFn(String(val), String(row.exchange_rate ?? rate))}</p>
+          <div className="text-amber-500 font-medium text-sm sm:text-base">{fmtUSD(Number(val))}</div>
+          <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBsFn(String(val), Number(row.exchange_rate ?? rate))}</p>
         </div>
       );
     },
@@ -122,7 +122,7 @@ const SalesManagerInner = () => {
   const { staff, fetchStaff } = useStaffStore();
   const { user, activeBranchId } = useAuthStore();
   const { data: rateData } = useExchangeRateQuery();
-  const exchangeRate = rateData?.rate ?? 1; // RateGuard asegura que data no es nulo, pero damos un fallback seguro
+  const exchangeRate = Number(rateData?.rate ?? 1); // RateGuard asegura que data no es nulo, pero damos un fallback seguro
 
   /* ── UI state local ── */
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -280,11 +280,11 @@ const SalesManagerInner = () => {
     const payload = {
       items: items.map((i: any) => ({
         product_id: i.product_id,
-        quantity: typeof i.quantity === "string" ? parseFloat(i.quantity) || 0 : i.quantity,
+        quantity: String(i.quantity),
         unit_price: i.unit_price,
       })),
       payment_method: paymentMethod as PaymentMethod,
-      exchange_rate: exchangeRate,
+      exchange_rate: String(exchangeRate),
       signal: controller.signal,
     };
 
@@ -438,6 +438,7 @@ const SalesManagerInner = () => {
             searchTerm={searchTerm}
             onSearch={setSearchTerm}
             onOpenScanner={() => setIsScannerOpen(true)}
+            exchangeRate={exchangeRate}
             cartPulse={cartPulse}
             submitBtnRef={submitBtnRef}
             paymentSelectRef={paymentSelectRef}
@@ -716,7 +717,7 @@ const SalesManagerInner = () => {
                       Total
                     </p>
                     <p className="text-2xl font-extrabold text-amber-500">{fmtUSD(filteredTotal)}</p>
-                    <p className="text-xs text-blue-400">{fmtBs(filteredTotal, toBs)}</p>
+                    <p className="text-xs text-blue-400">{fmtBs(filteredTotal, exchangeRate)}</p>
                   </div>
                 </div>
                 {sellerFilter && (

@@ -93,9 +93,6 @@ importers:
       '@types/node':
         specifier: ^26.0.1
         version: 26.1.2
-      '@types/pino-http':
-        specifier: ^6.1.0
-        version: 6.1.0
       mongodb-memory-server:
         specifier: ^11.0.1
         version: 11.2.0
@@ -981,10 +978,6 @@ packages:
 
   '@types/node@26.1.2':
     resolution: {integrity: sha512-Vu4a5UFA9rIIFJ7rB/Vaafh9lrCQszopTCx6KjFboXTGQbPNasehVR5TEiithSDGyd1DEiUByggTZsg8jukeIg==}
-
-  '@types/pino-http@6.1.0':
-    resolution: {integrity: sha512-rjPOSk2yI0714Pi8LdjIhDynXWqOvswmjRiTHj/1TOh1+0R26aKJ8vAVZRc4Ky5dQ5M5Bly1vrV/Klew6lThkA==}
-    deprecated: This is a stub types definition. pino-http provides its own type definitions, so you do not need this installed.
 
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
@@ -3675,10 +3668,6 @@ snapshots:
   '@types/node@26.1.2':
     dependencies:
       undici-types: 8.3.0
-
-  '@types/pino-http@6.1.0':
-    dependencies:
-      pino-http: 11.0.0
 
   '@types/qs@6.15.1': {}
 

@@ -33,6 +33,7 @@ interface SalePOSFormProps {
   setIsCartOpen: (open: boolean) => void;
   hasOpenShift: boolean; // 🚨 GUARDRAIL de Turno de Caja
   onOpenCashShift: () => void; // Acción para abrir caja
+  exchangeRate: number;
 }
 
 /**
@@ -51,7 +52,6 @@ const SalePOSForm = ({
   onPaymentChange,
   isLoading,
   currentTotal,
-  toBs,
   filteredProducts,
   searchTerm,
   onSearch,
@@ -64,6 +64,8 @@ const SalePOSForm = ({
   setIsCartOpen,
   hasOpenShift,
   onOpenCashShift,
+  toBs,
+  exchangeRate,
 }: SalePOSFormProps) => {
   return (
     <motion.div
@@ -194,7 +196,7 @@ const SalePOSForm = ({
                   product={product}
                   cartQty={typeof qty === 'string' ? parseFloat(qty) || 0 : qty}
                   onAdd={onAddItem}
-                  toBs={toBs}
+                  exchangeRate={exchangeRate}
                 />
               );
             })}

@@ -27,7 +27,7 @@ export const saleKeys = {
 
 export interface SaleItemPayload {
   product_id: ProductId;
-  quantity: number;
+  quantity: string | number;
   unit_price: number;
 }
 
@@ -105,7 +105,15 @@ export function useCreateSale() {
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<Sale, Error, CreateSalePayload>({
     mutationFn: async ({ signal, ...payload }) => {
-      const res = await API.post('/sales', payload, { signal });
+      // Generamos la llave de idempotencia para evitar ventas duplicadas
+      const idempotencyKey = crypto.randomUUID();
+
+      const res = await API.post('/sales', payload, { 
+        signal,
+        headers: {
+          'x-idempotency-key': idempotencyKey
+        }
+      });
       return (res.data.sale ?? res.data) as Sale;
     },
     onSuccess: () => {
