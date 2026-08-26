@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Check, ShoppingCart, Calendar, HelpCircle, X, ChevronDown, Wallet } from "lucide-react";
+import { Plus, Check, ShoppingCart, Calendar, HelpCircle, X, ChevronDown, Wallet, MapPin } from "lucide-react";
 import { useProductStore } from "../store/productStore";
 import { useStaffStore } from "../store/staffStore";
 import { useAuthStore } from "../store/authStore";
@@ -28,6 +28,7 @@ import { usePOSCart } from "../hooks/usePOSCart";
 import { useSalesFilters, DATE_FILTER_OPTIONS } from "../hooks/useSalesFilters";
 import { usePOSKeyboard } from "../hooks/usePOSKeyboard";
 import { useCreateSale, useCancelSale, saleKeys } from "../hooks/queries/useSaleQueries";
+import { useBranchesQuery } from "../hooks/queries/useBranchQueries";
 import { useCurrentCashShiftQuery } from "../hooks/queries/useCashShiftQueries";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Sale, SaleId, PaymentMethod, SaleDetailDTO, Product } from '@inventory/shared';
@@ -182,7 +183,12 @@ const SalesManagerInner = () => {
     filteredTotal,
     totalPages,
     totalDocs,
+    branchFilter,
+    setBranchFilter,
   } = useSalesFilters();
+
+  /* ── Sucursales (solo para Tenant / dueño) ── */
+  const { data: branches = [] } = useBranchesQuery();
 
   /* ── Effects ── */
   useEffect(() => {
@@ -609,6 +615,35 @@ const SalesManagerInner = () => {
                 </div>
               )}
 
+              {/* Filtro por Sucursal (solo para dueño/tenant) */}
+              {user?.role !== "employee" && branches.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="branch-filter" className="sr-only">
+                    Filtrar por sucursal
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <MapPin size={14} className="text-gray-500" aria-hidden="true" />
+                    <select
+                      id="branch-filter"
+                      aria-label="Filtrar por sucursal"
+                      value={branchFilter || ""}
+                      onChange={(e) => {
+                        setBranchFilter(e.target.value || null);
+                        setCurrentPage(1);
+                      }}
+                      className="bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-1.5 text-sm text-gray-300 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition outline-none cursor-pointer"
+                    >
+                      <option value="">Todas las sucursales</option>
+                      {branches.map((b: any) => (
+                        <option key={b._id} value={b._id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {/* Filtro por Método de Pago */}
               {user?.role !== "employee" && (
                 <div className="flex items-center gap-2">
@@ -684,9 +719,10 @@ const SalesManagerInner = () => {
 
           {/* ── Resumen de Ventas ── */}
           {(() => {
+            const isEmp = user?.role === "employee";
             const seller = sellerFilter ? staff.find((e: any) => e._id === sellerFilter) : null;
-            const initial = seller ? seller?.name?.charAt(0).toUpperCase() : "Σ";
-            const sellerName = seller ? seller.name : "Todas las ventas";
+            const initial = isEmp ? user.name.charAt(0).toUpperCase() : (seller ? seller?.name?.charAt(0).toUpperCase() : "Σ");
+            const sellerName = isEmp ? "Mis Ventas (Sucursal Actual)" : (seller ? seller.name : "Todas las ventas");
             return (
               <div
                 className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 mb-4
@@ -701,7 +737,7 @@ const SalesManagerInner = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-400 uppercase tracking-widest mb-0.5">
-                    {seller ? "Vendedor" : "Resumen Global"}
+                    {isEmp ? "Mi Resumen" : (seller ? "Vendedor" : "Resumen Global")}
                   </p>
                   <p className="text-white font-bold text-base truncate">{sellerName}</p>
                   <p className="text-xs text-orange-400/70 mt-0.5">{activeDateLabel}</p>

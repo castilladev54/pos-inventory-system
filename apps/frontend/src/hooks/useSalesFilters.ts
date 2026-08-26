@@ -24,6 +24,7 @@ export function useSalesFilters() {
   const [dateTo, setDateTo] = useState('');
   const [sellerFilter, setSellerFilter] = useState<string | null>(null);
   const [paymentFilter, setPaymentFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState<string | null>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const datePickerRef = useRef<HTMLDivElement | null>(null);
@@ -48,8 +49,9 @@ export function useSalesFilters() {
       dateFrom: finalDateFrom,
       dateTo: finalDateTo,
       paymentMethod: finalPaymentFilter,
+      branchId: isEmployee ? undefined : (branchFilter || undefined),
     };
-  }, [currentPage, sellerFilter, dateFilter, dateFrom, dateTo, paymentFilter, isEmployee]);
+  }, [currentPage, sellerFilter, dateFilter, dateFrom, dateTo, paymentFilter, isEmployee, branchFilter]);
 
   // Ejecutar consulta mediante TanStack Query
   // Si es un empleado, o si el filtro es 'custom' pero no tiene rango completo, bloqueamos la consulta para evitar ruido
@@ -111,6 +113,8 @@ export function useSalesFilters() {
     filteredTotal,
     totalPages,
     totalDocs,
+    branchFilter,
+    setBranchFilter,
     DATE_FILTER_OPTIONS,
   };
 }

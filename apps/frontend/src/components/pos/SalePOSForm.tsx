@@ -20,7 +20,7 @@ interface SalePOSFormProps {
   onPaymentChange: (val: string) => void;
   isLoading: boolean;
   currentTotal: number;
-  toBs: ñ;
+  toBs: (val: number) => number;
   filteredProducts: any[];
   searchTerm: string;
   onSearch: (val: string) => void;

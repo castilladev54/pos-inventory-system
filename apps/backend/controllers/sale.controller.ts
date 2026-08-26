@@ -54,6 +54,19 @@ export const createSale = async (req: Request, res: Response): Promise<any> => {
     const ownerId = req.businessOwnerId;
     const soldBy = req.actorId;
 
+    // 🔒 Validación cruzada de sucursal para empleados:
+    // El branchId del header x-branch-id es controlado por el cliente.
+    // Verificamos contra req.assignedBranches (fuente de verdad desde DB).
+    if (req.userRole === 'employee') {
+      const authorized = req.assignedBranches ?? [];
+      if (!authorized.includes(String(branchId))) {
+        return res.status(403).json({
+          success: false,
+          message: 'Acceso denegado: No tienes autorización para operar en esta sucursal.',
+        });
+      }
+    }
+
     // Validación Just-In-Time (JIT) de la tasa de cambio
     if (exchange_rate != null) {
       const latestRateDoc = await ExchangeRate.findOne({ customer_id: ownerId }).sort({ date: -1 }).lean();
@@ -109,6 +122,30 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
     // Usar contexto inyectado por injectBusinessContext (evita consulta redundante a DB)
     const isEmployee = req.userRole === 'employee';
     const ownerId = req.businessOwnerId;
+
+    // ── Filtro de sucursal (Validación Estricta Fail-Closed) ────────────────
+    let branchIdFilter: string | null = null;
+    
+    if (isEmployee) {
+      // 1. Bloqueo por defecto: Si no hay sucursales asignadas en DB, acceso denegado.
+      if (!req.assignedBranches || req.assignedBranches.length === 0) {
+        return res.status(403).json({ success: false, message: 'Acceso denegado: Empleado sin sucursales asignadas.' });
+      }
+
+      // 2. Extraemos la sucursal activa de la sesión (header x-branch-id inyectado por Axios)
+      const requestedBranch = req.branchId ? req.branchId.toString() : null;
+
+      // 3. Validación criptográfica: Intersección estricta.
+      if (!requestedBranch || !req.assignedBranches.includes(requestedBranch)) {
+        return res.status(403).json({ success: false, message: 'Acceso denegado: No tienes permiso para consultar esta sucursal o no declaraste contexto de sucursal.' });
+      }
+
+      // Asignación directa y singular, sin $in
+      branchIdFilter = requestedBranch;
+    } else {
+      // Dueño (Tenant): puede filtrar explícitamente por query param o ver todas.
+      branchIdFilter = (req.query.branchId as string) || null;
+    }
 
     // Empleado: ve solo SUS ventas (sold_by) dentro del scope del dueño
     // Dueño:    ve todas las ventas de su negocio + filtro opcional por vendedor
@@ -180,22 +217,33 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
     const dateSegment = dateFilterParam && dateFilterParam !== 'all'
       ? `:df${dateFilterParam}`
       : (dateFrom || dateTo ? `:df${dateFrom || ''}:dt${dateTo || ''}` : '');
+    // Incluir segmento de sucursal en la cache key para evitar colisiones entre sesiones
+    const branchSegment = branchIdFilter ? `:br${branchIdFilter}` : '';
     const cacheKey = buildPaginatedKey('sales', version, page, limit, cacheScope)
       + (sellerId ? `:s${sellerId}` : '')
       + (paymentMethod && paymentMethod !== 'all' ? `:pm${paymentMethod}` : '')
-      + dateSegment;
+      + dateSegment
+      + branchSegment;
 
     const { data, fromCache } = await getOrSetCache(cacheKey, async () => {
       const filter: Record<string, unknown> = {};
 
       if (isEmployee) {
-        // Empleado: ventas donde ÉL fue el vendedor dentro del negocio del dueño
+        // Empleado: ventas donde ÉL fue el vendedor, acotadas a sus sucursales autorizadas
         filter.customer_id = ownerId;
         filter.sold_by = req.actorId;
+        // 🔒 Restricción de sucursal (Fail-Closed garantizado arriba)
+        if (branchIdFilter) {
+          filter.branch_id = branchIdFilter;
+        }
       } else {
-        // Dueño: todas las ventas de su negocio, con filtro opcional por vendedor
+        // Dueño: todas las ventas de su negocio, con filtros opcionales por vendedor y sucursal
         filter.customer_id = req.businessOwnerId;
         if (sellerId) filter.sold_by = sellerId;
+        // Filtro opcional por sucursal específica (seleccionada en el frontend)
+        if (branchIdFilter && typeof branchIdFilter === 'string') {
+          filter.branch_id = branchIdFilter;
+        }
       }
 
       // Aplicar rango de fechas al campo createdAt
@@ -210,6 +258,15 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
       const aggFilter = { ...filter } as Record<string, unknown>;
       if (aggFilter.customer_id) aggFilter.customer_id = new mongoose.Types.ObjectId(aggFilter.customer_id as string);
       if (aggFilter.sold_by) aggFilter.sold_by = new mongoose.Types.ObjectId(aggFilter.sold_by as string);
+      // branch_id puede ser un string directo o un { $in: string[] }
+      if (aggFilter.branch_id) {
+        const brVal = aggFilter.branch_id as string | { $in: string[] };
+        if (typeof brVal === 'string') {
+          aggFilter.branch_id = new mongoose.Types.ObjectId(brVal);
+        } else if (brVal && typeof brVal === 'object' && '$in' in brVal) {
+          aggFilter.branch_id = { $in: (brVal.$in as string[]).map(id => new mongoose.Types.ObjectId(id)) };
+        }
+      }
 
       const [sales, total, totalAmountAgg] = await Promise.all([
         Sale.find(filter)

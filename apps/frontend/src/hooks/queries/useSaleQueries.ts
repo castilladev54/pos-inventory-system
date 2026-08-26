@@ -52,6 +52,7 @@ export interface SaleQueryFilters {
   dateFrom?: string;
   dateTo?: string;
   paymentMethod?: string;
+  branchId?: string;
   global?: boolean;
 }
 
@@ -76,6 +77,7 @@ export function useSalesQuery(filters: SaleQueryFilters) {
   if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters.dateTo) params.set('dateTo', filters.dateTo);
   if (filters.paymentMethod && filters.paymentMethod !== 'all') params.set('paymentMethod', filters.paymentMethod);
+  if (filters.branchId) params.set('branchId', filters.branchId);
 
   return useQuery<SaleListResponse>({
     queryKey: saleKeys.list(activeBranchId, filters),

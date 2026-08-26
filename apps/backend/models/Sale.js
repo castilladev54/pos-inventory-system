@@ -38,5 +38,6 @@ const saleSchema = new mongoose.Schema({
 
 saleSchema.index({ customer_id: 1, createdAt: -1 });
 saleSchema.index({ customer_id: 1, sold_by: 1, createdAt: -1 });
+saleSchema.index({ customer_id: 1, branch_id: 1, createdAt: -1 });
 
 export const Sale = mongoose.model('Sale', saleSchema);
