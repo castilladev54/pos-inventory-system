@@ -26,7 +26,7 @@ interface CartDrawerProps {
   onPaymentChange: (val: string) => void;
   isLoading: boolean;
   currentTotal: number;
-  exchangeRate: string | number;
+  exchangeRate: string;
   submitBtnRef?: RefObject<HTMLButtonElement | null>;
   paymentSelectRef?: RefObject<HTMLSelectElement | null>;
 }

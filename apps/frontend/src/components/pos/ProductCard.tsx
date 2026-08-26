@@ -11,7 +11,7 @@ interface ProductCardProps {
   product: PosProduct;
   cartQty: number;
   onAdd: (product: PosProduct) => void;
-  exchangeRate: string | number;
+  exchangeRate: string;
 }
 
 /**

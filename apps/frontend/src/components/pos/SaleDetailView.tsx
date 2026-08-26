@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { fmtUSD, fmtBs } from "../../utils/salesFormatters";
 import Button from "../atoms/Button";
 import type { SaleDetailDTO, UserRole } from '@inventory/shared';
+import Big from 'big.js';
 
 interface SaleDetailViewProps {
   sale: SaleDetailDTO;
@@ -75,7 +76,7 @@ const SaleDetailView = ({
           },
           {
             label: "Total Bs",
-            value: fmtBs(sale.total_amount, sale.exchange_rate ?? 0),
+            value: fmtBs(sale.total_amount, sale.exchange_rate ?? '0'),
             cls: "text-blue-400 text-2xl font-bold bg-blue-500/10 border-blue-500/20",
           },
         ].map(({ label, value, cls }) => (
@@ -101,28 +102,36 @@ const SaleDetailView = ({
           <tbody className="divide-y divide-white/5">
             {sale.items?.map((item, idx) => {
               const unit = item.product_id?.unit_type;
-              const quantityNum = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
+              
+              // Cálculo estricto del subtotal usando Big.js
+              const qtyBig = new Big(item.quantity?.toString() || '0');
+              const priceBig = new Big(item.unit_price?.toString() || '0');
+              const subtotalBig = qtyBig.times(priceBig);
+              
+              const qtyStr = qtyBig.toString();
+              const priceStr = priceBig.toString();
+              const subStr = subtotalBig.toString();
+
               const unitLabel =
                 unit && unit !== "unidad"
                   ? unit
-                  : quantityNum === 1
+                  : qtyBig.eq(1)
                   ? "unidad"
                   : "unidades";
-              const priceNum = typeof item.unit_price === 'string' ? parseFloat(item.unit_price) : item.unit_price;
-              const sub = quantityNum * priceNum;
+                  
               return (
                 <tr key={idx} className="hover:bg-white/5 transition-colors">
                   <td className="px-6 py-3 text-orange-400 font-medium">
                     {item.product_id?.name || "Desconocido"}
                   </td>
                   <td className="px-6 py-3 text-gray-300">
-                    {item.quantity} {unitLabel}
+                    {qtyStr} {unitLabel}
                   </td>
-                  <td className="px-6 py-3 text-gray-300">{fmtUSD(priceNum)}</td>
-                  <td className="px-6 py-3 text-blue-400">{fmtBs(priceNum, sale.exchange_rate ?? 0)}</td>
+                  <td className="px-6 py-3 text-gray-300">{fmtUSD(priceStr)}</td>
+                  <td className="px-6 py-3 text-blue-400">{fmtBs(priceStr, sale.exchange_rate ?? '0')}</td>
                   <td className="px-6 py-3">
-                    <div className="text-amber-500 font-medium">{fmtUSD(sub)}</div>
-                    <div className="text-xs text-blue-400">{fmtBs(sub, sale.exchange_rate ?? 0)}</div>
+                    <div className="text-amber-500 font-medium">{fmtUSD(subStr)}</div>
+                    <div className="text-xs text-blue-400">{fmtBs(subStr, sale.exchange_rate ?? '0')}</div>
                   </td>
                 </tr>
               );

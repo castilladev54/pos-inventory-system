@@ -32,7 +32,7 @@ interface SalePOSFormProps {
   setIsCartOpen: (open: boolean) => void;
   hasOpenShift: boolean; // 🚨 GUARDRAIL de Turno de Caja
   onOpenCashShift: () => void; // Acción para abrir caja
-  exchangeRate: string | number;
+  exchangeRate: string;
 }
 
 /**
