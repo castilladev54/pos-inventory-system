@@ -291,6 +291,7 @@ const SalesManagerInner = () => {
     createSaleMutation.mutate(payload, {
       onSuccess: () => {
         toast.success("Venta registrada con éxito");
+        resetCart();   // Limpia items + paymentMethod antes de cerrar el POS
         cancelForm();
         fetchAllForPOS();
       },

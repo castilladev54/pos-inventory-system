@@ -20,7 +20,7 @@ interface SalePOSFormProps {
   onPaymentChange: (val: string) => void;
   isLoading: boolean;
   currentTotal: number;
-  toBs: (val: number) => number;
+  toBs: ñ;
   filteredProducts: any[];
   searchTerm: string;
   onSearch: (val: string) => void;
@@ -79,7 +79,7 @@ const SalePOSForm = ({
       <div
         className="bg-[#1a1a24] border-b border-orange-500/20 p-3 sm:p-4 shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex justify-between items-center cursor-pointer hover:bg-[#22222f] transition z-20"
         onClick={() => {
-           if (hasOpenShift) setIsCartOpen(true);
+          if (hasOpenShift) setIsCartOpen(true);
         }}
       >
         <div className="flex items-center gap-2 sm:gap-4">
@@ -119,7 +119,7 @@ const SalePOSForm = ({
               {items.length}
             </div>
           </div>
-          
+
           {/* GUARDRAIL: Si no hay turno abierto, deshabilita y pide abrir caja */}
           {hasOpenShift ? (
             <Button
@@ -136,7 +136,7 @@ const SalePOSForm = ({
               <span className="sm:hidden">Pagar</span>
             </Button>
           ) : (
-             <Button
+            <Button
               variant="danger"
               className="rounded-full px-5 sm:px-8 py-2.5 sm:py-3 text-sm sm:text-base font-bold animate-pulse"
               onClick={(e) => {
