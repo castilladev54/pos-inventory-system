@@ -28,18 +28,18 @@ export const saleKeys = {
 export interface SaleItemPayload {
   product_id: ProductId;
   quantity: string | number;
-  unit_price: number;
+  unit_price: string | number;
 }
 
 export interface CreateSalePayload {
   items: SaleItemPayload[];
   payment_method: PaymentMethod;
-  exchange_rate?: number | null;
+  exchange_rate?: string | number | null;
   signal?: AbortSignal;
 }
 
 export interface UpdateSalePayload {
-  total_amount?: number;
+  total_amount?: string | number;
   payment_method?: PaymentMethod;
   items?: SaleItemPayload[];
 }

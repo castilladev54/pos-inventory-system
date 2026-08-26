@@ -7,7 +7,6 @@ import type { SaleDetailDTO, UserRole } from '@inventory/shared';
 interface SaleDetailViewProps {
   sale: SaleDetailDTO;
   onBack: () => void;
-  toBs: (val: number) => number;
   userRole?: UserRole;
   onCancel: () => void;
   onEdit: () => void;
@@ -20,15 +19,10 @@ interface SaleDetailViewProps {
 const SaleDetailView = ({
   sale,
   onBack,
-  toBs,
   userRole,
   onCancel,
   onEdit,
 }: SaleDetailViewProps) => {
-  // Use historical exchange rate if available, otherwise fallback to current global rate
-  const histToBs = sale.exchange_rate
-    ? (val: number) => Number((val * (sale.exchange_rate as number)).toFixed(2))
-    : toBs;
 
   return (
     <motion.article
@@ -81,7 +75,7 @@ const SaleDetailView = ({
           },
           {
             label: "Total Bs",
-            value: fmtBs(sale.total_amount, histToBs),
+            value: fmtBs(sale.total_amount, sale.exchange_rate ?? 0),
             cls: "text-blue-400 text-2xl font-bold bg-blue-500/10 border-blue-500/20",
           },
         ].map(({ label, value, cls }) => (
@@ -114,7 +108,8 @@ const SaleDetailView = ({
                   : quantityNum === 1
                   ? "unidad"
                   : "unidades";
-              const sub = quantityNum * item.unit_price;
+              const priceNum = typeof item.unit_price === 'string' ? parseFloat(item.unit_price) : item.unit_price;
+              const sub = quantityNum * priceNum;
               return (
                 <tr key={idx} className="hover:bg-white/5 transition-colors">
                   <td className="px-6 py-3 text-orange-400 font-medium">
@@ -123,11 +118,11 @@ const SaleDetailView = ({
                   <td className="px-6 py-3 text-gray-300">
                     {item.quantity} {unitLabel}
                   </td>
-                  <td className="px-6 py-3 text-gray-300">{fmtUSD(item.unit_price)}</td>
-                  <td className="px-6 py-3 text-blue-400">{fmtBs(item.unit_price, sale.exchange_rate)}</td>
+                  <td className="px-6 py-3 text-gray-300">{fmtUSD(priceNum)}</td>
+                  <td className="px-6 py-3 text-blue-400">{fmtBs(priceNum, sale.exchange_rate ?? 0)}</td>
                   <td className="px-6 py-3">
                     <div className="text-amber-500 font-medium">{fmtUSD(sub)}</div>
-                    <div className="text-xs text-blue-400">{fmtBs(sub, sale.exchange_rate)}</div>
+                    <div className="text-xs text-blue-400">{fmtBs(sub, sale.exchange_rate ?? 0)}</div>
                   </td>
                 </tr>
               );

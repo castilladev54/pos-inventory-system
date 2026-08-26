@@ -439,8 +439,6 @@ const SalesManagerInner = () => {
             onPaymentChange={setPaymentMethod}
             isLoading={createSaleMutation.isPending || isPosLoading}
             currentTotal={currentTotal}
-            totalBs={toBs(currentTotal, exchangeRate)}
-            toBs={(val) => toBs(val, exchangeRate)}
             filteredProducts={filteredProducts}
             searchTerm={searchTerm}
             onSearch={setSearchTerm}
@@ -463,7 +461,6 @@ const SalesManagerInner = () => {
         <SaleDetailView
           sale={viewedSale}
           onBack={() => setViewedSale(null)}
-          toBs={toBs}
           userRole={user?.role}
           onCancel={() => handleCancelSale(viewedSale._id)}
           onEdit={() => setIsEditModalOpen(true)}

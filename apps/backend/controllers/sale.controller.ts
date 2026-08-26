@@ -73,8 +73,10 @@ export const createSale = async (req: Request, res: Response): Promise<any> => {
       const currentBackendRate = latestRateDoc?.rate ?? null;
       
       if (currentBackendRate !== null) {
+        const currentRateNum = Number(currentBackendRate.toString());
+        const incomingRateNum = Number(exchange_rate);
         // Tolerancia de punto flotante
-        if (Math.abs(currentBackendRate - exchange_rate) > 0.001) {
+        if (Math.abs(currentRateNum - incomingRateNum) > 0.001) {
           return res.status(409).json({
             success: false,
             error: 'EXCHANGE_RATE_MISMATCH',
@@ -113,7 +115,7 @@ export const createSale = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
-export const getSales = async (req: Request, res: Response): Promise<void> => {
+export const getSales = async (req: Request, res: Response): Promise<any> => {
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));

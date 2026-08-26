@@ -26,7 +26,7 @@ interface CartDrawerProps {
   onPaymentChange: (val: string) => void;
   isLoading: boolean;
   currentTotal: number;
-  toBs: (val: number) => number;
+  exchangeRate: string | number;
   submitBtnRef?: RefObject<HTMLButtonElement | null>;
   paymentSelectRef?: RefObject<HTMLSelectElement | null>;
 }
@@ -47,7 +47,7 @@ const CartDrawer = ({
   onPaymentChange,
   isLoading,
   currentTotal,
-  toBs,
+  exchangeRate,
   submitBtnRef,
   paymentSelectRef,
 }: CartDrawerProps) => (
@@ -108,7 +108,7 @@ const CartDrawer = ({
                       </h5>
                       <div className="flex gap-4 items-center mt-1">
                         <span className="text-orange-500 font-bold">{fmtUSD(item.unit_price)}</span>
-                        <span className="text-blue-400 text-xs sm:text-sm font-medium">{fmtBs(item.unit_price, toBs)}</span>
+                        <span className="text-blue-400 text-xs sm:text-sm font-medium">{fmtBs(item.unit_price, exchangeRate)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -183,7 +183,7 @@ const CartDrawer = ({
               <div className="flex flex-col gap-2 sm:gap-3">
                 <div className="flex justify-between items-center text-lg sm:text-xl font-bold text-gray-300">
                   <span className="text-sm sm:text-base">Total Bs</span>
-                  <span className="text-blue-400">{fmtBs(currentTotal, toBs)}</span>
+                  <span className="text-blue-400">{fmtBs(currentTotal, exchangeRate)}</span>
                 </div>
                 <div className="flex justify-between items-center text-xl sm:text-2xl font-bold text-white bg-orange-500/10 p-3 rounded-xl border border-orange-500/20">
                   <span className="text-base sm:text-lg text-orange-400">Total a Pagar</span>

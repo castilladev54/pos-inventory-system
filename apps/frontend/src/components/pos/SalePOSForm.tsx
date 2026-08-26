@@ -20,7 +20,6 @@ interface SalePOSFormProps {
   onPaymentChange: (val: string) => void;
   isLoading: boolean;
   currentTotal: number;
-  toBs: (val: number) => number;
   filteredProducts: any[];
   searchTerm: string;
   onSearch: (val: string) => void;
@@ -33,7 +32,7 @@ interface SalePOSFormProps {
   setIsCartOpen: (open: boolean) => void;
   hasOpenShift: boolean; // 🚨 GUARDRAIL de Turno de Caja
   onOpenCashShift: () => void; // Acción para abrir caja
-  exchangeRate: number;
+  exchangeRate: string | number;
 }
 
 /**
@@ -64,7 +63,6 @@ const SalePOSForm = ({
   setIsCartOpen,
   hasOpenShift,
   onOpenCashShift,
-  toBs,
   exchangeRate,
 }: SalePOSFormProps) => {
   return (
@@ -216,7 +214,7 @@ const SalePOSForm = ({
         onPaymentChange={onPaymentChange}
         isLoading={isLoading}
         currentTotal={currentTotal}
-        toBs={toBs}
+        exchangeRate={exchangeRate}
         submitBtnRef={submitBtnRef}
         paymentSelectRef={paymentSelectRef}
       />
