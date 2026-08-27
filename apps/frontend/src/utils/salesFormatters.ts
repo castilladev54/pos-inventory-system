@@ -12,8 +12,18 @@ import { toBs } from './currency';
 /** Formatea un valor numérico como precio en bolívares usando la tasa del día. */
 export const fmtBs = (v: number | string, rate: number | string) => `Bs ${toBs(String(v || 0), String(rate))}`;
 
+import Big from 'big.js';
+
 /** Calcula el subtotal de un ítem del carrito (cantidad × precio unitario). */
-export const itemSubtotal = (item) => (parseFloat(item.quantity) || 0) * item.unit_price;
+export const itemSubtotal = (item) => {
+  try {
+    const qty = new Big(item.quantity || "0");
+    const price = new Big(item.unit_price || "0");
+    return qty.times(price).toNumber();
+  } catch {
+    return 0;
+  }
+};
 
 /**
  * Analiza la fecha de vencimiento de un producto y devuelve un objeto

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import toast from 'react-hot-toast';
 import { ProductId } from '@inventory/shared';
 import { itemSubtotal } from '../utils/salesFormatters';
+import Big from 'big.js';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -16,9 +17,9 @@ export type PaymentMethodLabel =
 export interface CartItem {
   product_id: ProductId;
   name: string;
-  quantity: number;
-  unit_price: number;
-  maxStock: number;
+  quantity: string;
+  unit_price: string;
+  maxStock: string;
   unit_type: 'unidad' | 'kg' | 'litro' | 'metro';
 }
 
@@ -26,8 +27,8 @@ export interface CartItem {
 export interface AddableProduct {
   _id: ProductId;
   name: string;
-  price: number;
-  stock: number;
+  price: number | string;
+  stock: number | string;
   unit_type?: 'unidad' | 'kg' | 'litro' | 'metro';
 }
 
@@ -46,7 +47,7 @@ interface CartState {
   currentTotal: () => number;
 
   // Actions
-  addItem: (product: AddableProduct, quantity?: number) => void;
+  addItem: (product: AddableProduct, quantity?: string | number) => void;
   changeQty: (index: number, value: string | number) => void;
   removeItem: (index: number) => void;
   cyclePaymentMethod: () => void;
@@ -62,28 +63,39 @@ export const useCartStore = create<CartState>()((set, get) => ({
   paymentMethod: 'Efectivo',
   cartPulse: false,
 
-  currentTotal: () => get().items.reduce((acc, item) => acc + itemSubtotal(item), 0),
+  currentTotal: () => get().items.reduce((acc, item) => {
+    try {
+      const qty = new Big(item.quantity || "0");
+      const price = new Big(item.unit_price || "0");
+      return acc + qty.times(price).toNumber();
+    } catch {
+      return acc;
+    }
+  }, 0),
 
-  addItem: (product, quantity = 1) => {
-    if (product.stock <= 0) {
+  addItem: (product, quantity = "1") => {
+    const pStock = new Big(product.stock || "0");
+    if (pStock.lte(0)) {
       toast.error(`${product.name} no tiene stock`);
       return;
     }
 
     set((state) => {
       const idx = state.items.findIndex((i) => i.product_id === product._id);
+      const qtyToAdd = new Big(quantity);
 
       if (idx >= 0) {
         const existing = state.items[idx];
         if (!existing) return state;
 
-        if (existing.quantity + quantity > product.stock) {
+        const newQty = new Big(existing.quantity).plus(qtyToAdd);
+        if (newQty.gt(pStock)) {
           setTimeout(() => toast.error(`Sin más stock de ${product.name}`), 0);
           return state;
         }
         return {
           items: state.items.map((item, i) =>
-            i === idx ? { ...item, quantity: item.quantity + quantity } : item
+            i === idx ? { ...item, quantity: newQty.toString() } : item
           ),
           cartPulse: true,
         };
@@ -95,9 +107,9 @@ export const useCartStore = create<CartState>()((set, get) => ({
           {
             product_id: product._id,
             name: product.name,
-            quantity,
-            unit_price: product.price,
-            maxStock: product.stock,
+            quantity: qtyToAdd.toString(),
+            unit_price: String(product.price),
+            maxStock: String(product.stock),
             unit_type: product.unit_type ?? 'unidad',
           },
         ],
@@ -110,19 +122,26 @@ export const useCartStore = create<CartState>()((set, get) => ({
   },
 
   changeQty: (index, value) => {
-    const qty = parseFloat(String(value));
-    if (String(value) !== '' && (isNaN(qty) || qty < 0)) return;
+    let qty: Big;
+    try {
+      qty = new Big(value || "0");
+      if (qty.lt(0)) return;
+    } catch {
+      if (String(value) !== '') return;
+      qty = new Big(0);
+    }
 
     set((state) => {
       const item = state.items[index];
       if (!item) return state;
-      if (qty > item.maxStock) {
+      const mStock = new Big(item.maxStock || "0");
+      if (qty.gt(mStock)) {
         toast.error(`Máximo stock: ${item.maxStock}`);
         return state;
       }
       return {
         items: state.items.map((it, i) =>
-          i === index ? { ...it, quantity: value as number } : it
+          i === index ? { ...it, quantity: String(value) } : it
         ),
       };
     });
@@ -154,20 +173,27 @@ export const useCartStore = create<CartState>()((set, get) => ({
       const last = state.items[lastIdx];
       if (!last) return state;
 
-      const newQty = (parseFloat(String(last.quantity)) || 0) + delta;
+      try {
+        const currentQty = new Big(last.quantity || "0");
+        const newQty = currentQty.plus(delta);
+        const mStock = new Big(last.maxStock || "0");
 
-      if (newQty <= 0) {
-        return { items: state.items.filter((_, i) => i !== lastIdx) };
-      }
-      if (newQty > last.maxStock) {
-        toast.error(`Stock máx: ${last.maxStock}`);
+        if (newQty.lte(0)) {
+          return { items: state.items.filter((_, i) => i !== lastIdx) };
+        }
+        if (newQty.gt(mStock)) {
+          toast.error(`Stock máx: ${last.maxStock}`);
+          return state;
+        }
+        return {
+          items: state.items.map((item, i) =>
+            i === lastIdx ? { ...item, quantity: newQty.toString() } : item
+          ),
+        };
+      } catch (e) {
+        console.error(e);
         return state;
       }
-      return {
-        items: state.items.map((item, i) =>
-          i === lastIdx ? { ...item, quantity: newQty } : item
-        ),
-      };
     });
   },
 

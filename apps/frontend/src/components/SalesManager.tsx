@@ -305,7 +305,9 @@ const SalesManagerInner = () => {
         if (err.name === "CanceledError" || err.name === "AbortError" || DOMException && err instanceof DOMException && err.name === "AbortError") {
           toast.error("Venta cancelada (operación abortada)");
         } else {
-          toast.error(err?.response?.data?.message || "Error al registrar la venta");
+          const errMsg = err?.response?.data?.message 
+            || (!err?.response ? "Error de red: El servidor no responde. Verifica tu conexión." : "Error inesperado al registrar la venta");
+          toast.error(errMsg);
         }
       },
       onSettled: () => {

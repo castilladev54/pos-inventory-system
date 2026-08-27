@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ShoppingCart, Trash2, X } from 'lucide-react';
+import Big from 'big.js';
 import { fmtUSD, fmtBs, itemSubtotal } from '../../utils/salesFormatters';
 import Button from '../atoms/Button';
 import InputText from '../atoms/InputText';
@@ -9,10 +10,10 @@ import type { FormEvent, RefObject } from 'react';
 export interface CartItem {
   product_id: string;
   name: string;
-  unit_price: number;
-  quantity: number | string;
+  unit_price: string;
+  quantity: string;
   unit_type?: string;
-  maxStock?: number;
+  maxStock?: string;
 }
 
 interface CartDrawerProps {
@@ -113,7 +114,15 @@ const CartDrawer = ({
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                       <div className={`flex items-center gap-2 rounded-xl border p-1 transition-colors ${
-                        (item.maxStock ?? 0) - Number(item.quantity) < 0
+                        (() => {
+                          try {
+                            const maxStock = new Big(item.maxStock || "0");
+                            const qty = new Big(item.quantity || "0");
+                            return maxStock.lt(qty);
+                          } catch {
+                            return false;
+                          }
+                        })()
                           ? 'bg-red-500/10 border-red-500/50'
                           : 'bg-[#1a1a24] border-white/10'
                       }`}>
@@ -125,7 +134,13 @@ const CartDrawer = ({
                           onChange={(e) => onQtyChange(index, e.target.value)}
                           aria-label={`Cantidad de ${item.name}`}
                           className={`w-16 sm:w-20 text-center text-base sm:text-lg font-bold bg-transparent border-none h-10 p-0 focus:ring-0 ${
-                            (item.maxStock ?? 0) - Number(item.quantity) < 0 ? 'text-red-400' : ''
+                            (() => {
+                              try {
+                                return new Big(item.maxStock || "0").lt(new Big(item.quantity || "0"));
+                              } catch {
+                                return false;
+                              }
+                            })() ? 'text-red-400' : ''
                           }`}
                         />
                       </div>
