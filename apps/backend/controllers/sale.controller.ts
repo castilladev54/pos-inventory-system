@@ -88,7 +88,7 @@ export const createSale = async (req: Request, res: Response): Promise<any> => {
     }
 
     const sale = await withTransactionRetry(() => 
-      createSaleProcess(ownerId, soldBy, branchId, items, payment_method, exchange_rate)
+      createSaleProcess(ownerId, soldBy, branchId, items, payment_method, exchange_rate, req.cashShift?._id)
     );
 
     // Invalidar caché paginada de ventas y productos

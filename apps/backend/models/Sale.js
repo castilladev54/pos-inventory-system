@@ -2,6 +2,11 @@ import mongoose from 'mongoose';
 import { DecimalConfig, DecimalOptionalConfig } from '../utils/decimalConfig.js';
 
 const saleSchema = new mongoose.Schema({
+  shift_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CashShift',
+    required: true
+  },
   customer_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -36,6 +41,7 @@ const saleSchema = new mongoose.Schema({
   id: false
 });
 
+saleSchema.index({ shift_id: 1 }); // Indexado para acelerar las agregaciones de arqueo
 saleSchema.index({ customer_id: 1, createdAt: -1 });
 saleSchema.index({ customer_id: 1, sold_by: 1, createdAt: -1 });
 saleSchema.index({ customer_id: 1, branch_id: 1, createdAt: -1 });

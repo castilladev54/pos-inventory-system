@@ -36,6 +36,7 @@ export interface SaleItemInput {
  * @param items            Líneas de la venta
  * @param payment_method   Método de pago
  * @param exchange_rate    Tasa de cambio opcional
+ * @param shiftId          ID del turno de caja activo (inyectado por ensureCashShiftOpen)
  */
 export const createSaleProcess = async (
   businessOwnerId: BusinessOwnerId,
@@ -43,7 +44,8 @@ export const createSaleProcess = async (
   branchId: BranchId,
   items: SaleItemInput[],
   payment_method: PaymentMethod,
-  exchange_rate: string | null = null
+  exchange_rate: string | null = null,
+  shiftId?: import('mongoose').Types.ObjectId
 ) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -123,8 +125,9 @@ export const createSaleProcess = async (
       }
     }
 
-    // Crear el documento de Venta
+    // Crear el documento de Venta (shift_id proviene del middleware de turno activo)
     const sale = new Sale({
+      shift_id: shiftId,
       customer_id: businessOwnerId,
       sold_by: soldBy,
       branch_id: branchId,

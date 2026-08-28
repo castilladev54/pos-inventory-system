@@ -1,5 +1,6 @@
 import { BusinessOwnerId, ActorId, BranchId } from './brands';
 import { Role } from '../models/User';
+import { ICashShiftDocument } from '../models/CashShift.model';
 
 declare global {
   namespace Express {
@@ -29,6 +30,9 @@ declare global {
       realUserId?: string;               // ID real del usuario autenticado
       userRole?: Role;                   // Tipado estricto derivado de ROLES
       userPermissions?: string[];        // Permisos granulares del actor
+
+      // ─── Inyectado por ensureCashShiftOpen ─────────────────────────────────
+      cashShift?: ICashShiftDocument;    // Turno de caja activo del operador
     }
   }
 }
