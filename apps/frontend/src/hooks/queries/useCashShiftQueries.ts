@@ -20,20 +20,11 @@ export const cashShiftKeys = {
 // ─── Tipos de Payload ─────────────────────────────────────────────────────────
 
 export interface OpenCashShiftPayload {
-  initial_cash: {
-    USD: number;
-    COP: number;
-    BS: number;
-  };
+  opening_balance: string;
 }
 
 export interface CloseCashShiftPayload {
-  declared_amounts: {
-    cash: { USD: number; COP: number; BS: number };
-    card_bouchers: { USD: number; COP: number; BS: number };
-    transfers: { USD: number; COP: number; BS: number };
-  };
-  notes?: string;
+  closing_balance: string;
 }
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
@@ -45,8 +36,9 @@ export function useCurrentCashShiftQuery(branchId: BranchId | null, userId: User
     queryFn: async ({ signal }) => {
       if (!branchId || !userId) return null;
       try {
-        const res = await api.get('/api/cash-shifts/current', { signal });
-        return (res.data.shift ?? res.data.data ?? res.data) as ICashShift;
+        const res = await api.get('/api/shifts/active', { signal });
+        const payload = res.data;
+        return (payload.shift !== undefined ? payload.shift : (payload.data !== undefined ? payload.data : payload)) as ICashShift | null;
       } catch (error: any) {
         if (error.response?.status === 404) {
           return null; // No hay turno abierto
@@ -66,8 +58,9 @@ export function useOpenCashShift() {
   const qc = useQueryClient();
   return useMutation<ICashShift, Error, { branchId: BranchId; userId: UserId; payload: OpenCashShiftPayload }>({
     mutationFn: async ({ payload }) => {
-      const res = await api.post('/api/cash-shifts/open', payload);
-      return (res.data.shift ?? res.data.data ?? res.data) as ICashShift;
+      const res = await api.post('/api/shifts/open', payload);
+      const data = res.data;
+      return (data.shift !== undefined ? data.shift : (data.data !== undefined ? data.data : data)) as ICashShift;
     },
     onSuccess: (_, { branchId, userId }) => {
       qc.invalidateQueries({ queryKey: cashShiftKeys.current(branchId, userId) });
@@ -79,9 +72,11 @@ export function useOpenCashShift() {
 export function useCloseCashShift() {
   const qc = useQueryClient();
   return useMutation<ICashShift, Error, { shiftId: CashShiftId; branchId: BranchId; userId: UserId; payload: CloseCashShiftPayload }>({
-    mutationFn: async ({ shiftId, payload }) => {
-      const res = await api.post(`/api/cash-shifts/${shiftId}/close`, payload);
-      return (res.data.shift ?? res.data.data ?? res.data) as ICashShift;
+    mutationFn: async ({ payload }) => {
+      // The backend expects /api/shifts/close, shiftId is obtained by the backend via cashier_id + branch_id in token
+      const res = await api.post(`/api/shifts/close`, payload);
+      const data = res.data;
+      return (data.shift !== undefined ? data.shift : (data.data !== undefined ? data.data : data)) as ICashShift;
     },
     onSuccess: (_, { branchId, userId }) => {
       qc.invalidateQueries({ queryKey: cashShiftKeys.current(branchId, userId) });

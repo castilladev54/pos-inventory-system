@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import toast from "react-hot-toast";
 import Big from "big.js";
 
@@ -17,8 +17,10 @@ export function usePOSCart() {
   const [items, setItems] = useState<POSCartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
   const [cartPulse, setCartPulse] = useState(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const handleAddItem = useCallback((product: any, quantity: string | number = "1") => {
+    idempotencyKeyRef.current = null;
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.product_id === product._id);
       const qtyToAdd = new Big(quantity);
@@ -38,6 +40,7 @@ export function usePOSCart() {
   }, []);
 
   const handleQtyChange = (index: number, value: string) => {
+    idempotencyKeyRef.current = null;
     try {
       const qty = new Big(value || "0");
       if (qty.lt(0)) return;
@@ -49,9 +52,13 @@ export function usePOSCart() {
     });
   };
 
-  const handleRemoveItem = (index: number) => setItems((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveItem = (index: number) => {
+    idempotencyKeyRef.current = null;
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const cyclePaymentMethod = useCallback(() => {
+    idempotencyKeyRef.current = null;
     setPaymentMethod((prev) => {
       const next = PAYMENT_METHODS[(PAYMENT_METHODS.indexOf(prev) + 1) % PAYMENT_METHODS.length] ?? "Efectivo";
       toast.success(`Método: ${next}`, { duration: 1200, icon: "💳" });
@@ -62,6 +69,7 @@ export function usePOSCart() {
   const clearCart = useCallback(() => {
     if (items.length === 0) return;
     if (window.confirm("¿Vaciar todo el carrito?")) {
+      idempotencyKeyRef.current = null;
       setItems([]);
       toast.success("Carrito vaciado", { icon: "🗑️" });
     }
@@ -69,6 +77,7 @@ export function usePOSCart() {
 
   const modifyLastItemQty = useCallback((delta: number) => {
     if (items.length === 0) return;
+    idempotencyKeyRef.current = null;
     const last = items.length - 1;
     setItems((prev) => {
       const next = [...prev];
@@ -85,6 +94,7 @@ export function usePOSCart() {
   }, [items]);
 
   const resetCart = useCallback(() => {
+    idempotencyKeyRef.current = null;
     setItems([]);
     setPaymentMethod("Efectivo");
   }, []);
@@ -100,8 +110,11 @@ export function usePOSCart() {
   }, 0), [items]);
 
   return {
-    items, paymentMethod, cartPulse, currentTotal,
-    setPaymentMethod,
+    items, paymentMethod, cartPulse, currentTotal, idempotencyKeyRef,
+    setPaymentMethod: (method: string) => {
+      idempotencyKeyRef.current = null;
+      setPaymentMethod(method);
+    },
     handleAddItem, handleQtyChange, handleRemoveItem,
     cyclePaymentMethod, clearCart, modifyLastItemQty, resetCart,
   };

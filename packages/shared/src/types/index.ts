@@ -265,43 +265,18 @@ export interface ApiProductListResponse {
 
 // ─── TURNO DE CAJA ──────────────────────────────────────────────────────────
 
-interface MultiCurrencyAmount {
-  USD: number;
-  COP: number;
-  BS: number;
-}
-
 export interface ICashShift {
   _id: CashShiftId;
   branch_id: BranchId;
-  user_id: UserId;
+  cashier_id: UserId;
   status: 'OPEN' | 'CLOSED';
   opened_at: string;
   closed_at?: string;
 
-  initial_cash: MultiCurrencyAmount;
-
-  system_summary: {
-    cash_sales: MultiCurrencyAmount;
-    card_sales: MultiCurrencyAmount;
-    transfer_sales: MultiCurrencyAmount;
-    cash_inflows: MultiCurrencyAmount;
-    cash_outflows: MultiCurrencyAmount;
-    expected_cash: MultiCurrencyAmount;
-  };
-
-  declared_amounts?: {
-    cash: MultiCurrencyAmount;
-    card_bouchers: MultiCurrencyAmount;
-    transfers: MultiCurrencyAmount;
-  };
-
-  discrepancy?: {
-    cash_difference: MultiCurrencyAmount;
-    card_difference: MultiCurrencyAmount;
-    has_discrepancy: boolean;
-    notes?: string;
-  };
+  opening_balance: string;
+  expected_balance?: string;
+  closing_balance?: string;
+  total_sales_amount?: string;
 }
 
 // ─── TRANSFERENCIAS DE STOCK ────────────────────────────────────────────────

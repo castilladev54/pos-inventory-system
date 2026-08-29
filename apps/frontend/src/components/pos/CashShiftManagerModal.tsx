@@ -15,9 +15,10 @@ import toast from 'react-hot-toast';
 interface CashShiftManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isImperative?: boolean;
 }
 
-const CashShiftManagerModal = ({ isOpen, onClose }: CashShiftManagerModalProps) => {
+const CashShiftManagerModal = ({ isOpen, onClose, isImperative = false }: CashShiftManagerModalProps) => {
   const { user, activeBranchId } = useAuthStore();
   const { data: rateData } = useExchangeRateQuery();
   const exchangeRate = rateData?.rate ?? 1;
@@ -48,11 +49,7 @@ const CashShiftManagerModal = ({ isOpen, onClose }: CashShiftManagerModalProps) 
       branchId,
       userId,
       payload: {
-        initial_cash: {
-          USD: parseFloat(initialCashUSD) || 0,
-          COP: parseFloat(initialCashCOP) || 0,
-          BS: parseFloat(initialCashBS) || 0,
-        }
+        opening_balance: (initialCashUSD || "0").replace(',', '.')
       }
     }, {
       onSuccess: () => {
@@ -74,17 +71,7 @@ const CashShiftManagerModal = ({ isOpen, onClose }: CashShiftManagerModalProps) 
       branchId,
       userId,
       payload: {
-        declared_amounts: {
-          cash: {
-            USD: parseFloat(declaredCashUSD) || 0,
-            COP: parseFloat(declaredCashCOP) || 0,
-            BS: parseFloat(declaredCashBS) || 0,
-          },
-          // Por defecto asumimos que tarjetas y transferencias coinciden con el sistema a menos que se implemente conciliación completa
-          card_bouchers: currentShift.system_summary.card_sales,
-          transfers: currentShift.system_summary.transfer_sales,
-        },
-        notes
+        closing_balance: (declaredCashUSD || "0").replace(',', '.')
       }
     }, {
       onSuccess: () => {
@@ -109,49 +96,25 @@ const CashShiftManagerModal = ({ isOpen, onClose }: CashShiftManagerModalProps) 
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Efectivo (USD)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={initialCashUSD}
-            onChange={(e) => setInitialCashUSD(e.target.value)}
-            className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-orange-500"
-            placeholder="0.00"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Efectivo (COP)</label>
-          <input
-            type="number"
-            min="0"
-            step="1000"
-            value={initialCashCOP}
-            onChange={(e) => setInitialCashCOP(e.target.value)}
-            className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-orange-500"
-            placeholder="0"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Efectivo (BS)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={initialCashBS}
-            onChange={(e) => setInitialCashBS(e.target.value)}
-            className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-orange-500"
-            placeholder="0.00"
-          />
-        </div>
+      <div>
+        <label className="block text-xs text-gray-400 mb-1">Efectivo Inicial (USD)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={initialCashUSD}
+          onChange={(e) => setInitialCashUSD(e.target.value)}
+          className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-orange-500"
+          placeholder="0.00"
+        />
       </div>
 
       <div className="pt-4 flex justify-end gap-3 border-t border-white/10 mt-6">
-        <Button variant="ghost" onClick={onClose} disabled={isOpening}>
-          Cancelar
-        </Button>
+        {!isImperative && (
+          <Button variant="ghost" onClick={onClose} disabled={isOpening}>
+            Cancelar
+          </Button>
+        )}
         <Button variant="primary" onClick={handleOpenShift} disabled={isOpening}>
           {isOpening ? "Abriendo..." : "Abrir Turno"}
         </Button>
@@ -161,7 +124,12 @@ const CashShiftManagerModal = ({ isOpen, onClose }: CashShiftManagerModalProps) 
 
   const renderCloseShiftForm = () => {
     if (!currentShift) return null;
-    const sys = currentShift.system_summary;
+
+    const openDateStr = currentShift.opened_at || (currentShift as any).createdAt;
+    const openDate = openDateStr ? new Date(openDateStr) : null;
+    const dateDisplay = openDate && !isNaN(openDate.getTime()) 
+      ? openDate.toLocaleString() 
+      : 'Fecha no disponible';
 
     return (
       <div className="space-y-4">
@@ -171,82 +139,42 @@ const CashShiftManagerModal = ({ isOpen, onClose }: CashShiftManagerModalProps) 
             Turno Abierto
           </h3>
           <p className="text-sm text-gray-300 mt-1">
-            Abierto el: {new Date(currentShift.opened_at).toLocaleString()}
+            Abierto el: {dateDisplay}
           </p>
         </div>
 
-        {/* Resumen del Sistema */}
         <div className="bg-[#1a1a24] p-4 rounded-xl border border-white/5 space-y-3">
-          <p className="text-sm font-semibold text-gray-300 border-b border-white/10 pb-2">Ventas del Sistema (Esperado)</p>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Ventas en Efectivo:</span>
-            <span className="text-white font-medium">{fmtUSD(sys.cash_sales.USD)} / {fmtBs(sys.cash_sales.USD, exchangeRate)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Total Esperado en Caja (con fondo):</span>
-            <span className="text-emerald-400 font-bold">{fmtUSD(sys.expected_cash.USD)}</span>
+            <span className="text-gray-400">Fondo Inicial:</span>
+            <span className="text-white font-medium">{fmtUSD(Number(currentShift.opening_balance || 0))}</span>
           </div>
         </div>
 
         {/* Arqueo Declarado */}
         <div>
           <p className="text-sm font-semibold text-gray-300 mb-3 mt-2">Arqueo de Caja (Declarado)</p>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Efectivo (USD)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={declaredCashUSD}
-                onChange={(e) => setDeclaredCashUSD(e.target.value)}
-                className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-orange-500"
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Efectivo (COP)</label>
-              <input
-                type="number"
-                min="0"
-                step="1000"
-                value={declaredCashCOP}
-                onChange={(e) => setDeclaredCashCOP(e.target.value)}
-                className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-orange-500"
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Efectivo (BS)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={declaredCashBS}
-                onChange={(e) => setDeclaredCashBS(e.target.value)}
-                className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-orange-500"
-                placeholder="0.00"
-              />
-            </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Efectivo Final (USD)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={declaredCashUSD}
+              onChange={(e) => setDeclaredCashUSD(e.target.value)}
+              className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-orange-500"
+              placeholder="0.00"
+            />
           </div>
         </div>
         
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Notas de Cierre (Opcional)</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-orange-500 resize-none h-20"
-            placeholder="Observaciones sobre descuadres, vales, etc."
-          ></textarea>
-        </div>
-
         <div className="pt-4 flex justify-end gap-3 border-t border-white/10 mt-6">
-          <Button variant="ghost" onClick={onClose} disabled={isClosing}>
-            Cancelar
-          </Button>
+          {!isImperative && (
+            <Button variant="ghost" onClick={onClose} disabled={isClosing}>
+              Cancelar
+            </Button>
+          )}
           <Button variant="danger" onClick={handleCloseShift} disabled={isClosing}>
-            {isClosing ? "Cerrando..." : "Cerrar Turno y Guardar Arqueo"}
+            {isClosing ? "Cerrando..." : "Cerrar Turno"}
           </Button>
         </div>
       </div>
@@ -273,9 +201,11 @@ const CashShiftManagerModal = ({ isOpen, onClose }: CashShiftManagerModalProps) 
               <Wallet className="text-amber-500" />
               Gestión de Turno de Caja
             </h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-white transition">
-              <X size={24} />
-            </button>
+            {!isImperative && (
+              <button onClick={onClose} className="text-gray-400 hover:text-white transition">
+                <X size={24} />
+              </button>
+            )}
           </div>
 
           {/* Body */}

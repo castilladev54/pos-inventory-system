@@ -7,6 +7,8 @@ import {
 import API from '../../api/axios';
 import { useAuthStore } from '../../store/authStore';
 import { exchangeRateKeys } from './useExchangeRateQueries';
+import { cashShiftKeys } from './useCashShiftQueries';
+import toast from 'react-hot-toast';
 import type {
   Sale,
   SaleId,
@@ -36,6 +38,7 @@ export interface CreateSalePayload {
   payment_method: PaymentMethod;
   exchange_rate?: string | null;
   signal?: AbortSignal;
+  idempotencyKey?: string;
 }
 
 export interface UpdateSalePayload {
@@ -106,15 +109,15 @@ export function useCreateSale() {
   const qc = useQueryClient();
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<Sale, Error, CreateSalePayload>({
-    mutationFn: async ({ signal, ...payload }) => {
-      // Generamos la llave de idempotencia para evitar ventas duplicadas
-      const idempotencyKey = crypto.randomUUID();
+    mutationFn: async ({ signal, idempotencyKey, ...payload }) => {
+      const headers: Record<string, string> = {};
+      if (idempotencyKey) {
+        headers['x-idempotency-key'] = idempotencyKey;
+      }
 
       const res = await API.post('/sales', payload, { 
         signal,
-        headers: {
-          'x-idempotency-key': idempotencyKey
-        }
+        headers
       });
       return (res.data.sale ?? res.data) as Sale;
     },
@@ -124,6 +127,12 @@ export function useCreateSale() {
       qc.invalidateQueries({ queryKey: ['products', activeBranchId] });
     },
     onError: (error: any) => {
+      if (error?.response?.status === 403) {
+        const userId = useAuthStore.getState().user?._id;
+        qc.invalidateQueries({ queryKey: cashShiftKeys.current(activeBranchId, userId) });
+        toast.error("Turno de caja cerrado o expirado. Abre un nuevo turno.");
+      }
+      
       // Recuperación automática JIT: Si la tasa de cambio cambió, invalidamos la tasa para forzar un refetch.
       if (error?.response?.status === 409 && error?.response?.data?.error === 'EXCHANGE_RATE_MISMATCH') {
         qc.invalidateQueries({ queryKey: exchangeRateKeys.all });

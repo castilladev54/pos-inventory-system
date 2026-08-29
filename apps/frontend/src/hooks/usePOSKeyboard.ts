@@ -9,6 +9,7 @@ interface UsePOSKeyboardOptions {
   isScannerOpen: boolean;
   isCartOpen: boolean;
   items: unknown[];
+  hasOpenShift: boolean;
 
   setShowHelp: (fn: (prev: boolean) => boolean) => void;
   setIsFormOpen: (open: boolean) => void;
@@ -66,6 +67,7 @@ export function usePOSKeyboard({
   isScannerOpen,
   isCartOpen,
   items,
+  hasOpenShift,
   setShowHelp,
   setIsFormOpen,
   setViewedSale,
@@ -89,6 +91,8 @@ export function usePOSKeyboard({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (!hasOpenShift) return;
+
       const target = e.target as HTMLElement;
       const isInputFocused = ['input', 'textarea', 'select'].includes(
         target.tagName.toLowerCase()
@@ -231,7 +235,7 @@ export function usePOSKeyboard({
       scannerBuffer.current = '';
     };
   }, [
-    isFormOpen, viewedSale, showHelp, isScannerOpen, isCartOpen, items,
+    isFormOpen, viewedSale, showHelp, isScannerOpen, isCartOpen, items, hasOpenShift,
     setShowHelp, setIsFormOpen, setViewedSale, setIsScannerOpen, setIsCartOpen,
     searchInputRef, submitBtnRef,
     cyclePaymentMethod, clearCart, modifyLastItemQty, handleBarcodeScan, cancelForm,

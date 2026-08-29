@@ -23,6 +23,7 @@ import EditSaleModal from "./pos/EditSaleModal";
 import CashShiftManagerModal from "./pos/CashShiftManagerModal";
 import { RateGuard } from "./pos/RateGuard";
 import { RequireBranchGuard } from "./guards/RequireBranchGuard";
+import POSGuardOverlay from "./pos/POSGuardOverlay";
 
 import { usePOSCart } from "../hooks/usePOSCart";
 import { useSalesFilters, DATE_FILTER_OPTIONS } from "../hooks/useSalesFilters";
@@ -158,6 +159,7 @@ const SalesManagerInner = () => {
     clearCart,
     modifyLastItemQty,
     resetCart,
+    idempotencyKeyRef,
   } = usePOSCart();
 
   const {
@@ -283,6 +285,10 @@ const SalesManagerInner = () => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID();
+    }
+
     const payload = {
       items: items.map((i: any) => ({
         product_id: i.product_id,
@@ -292,16 +298,22 @@ const SalesManagerInner = () => {
       payment_method: paymentMethod as PaymentMethod,
       exchange_rate: String(exchangeRate),
       signal: controller.signal,
+      idempotencyKey: idempotencyKeyRef.current,
     };
 
     createSaleMutation.mutate(payload, {
       onSuccess: () => {
+        idempotencyKeyRef.current = null;
         toast.success("Venta registrada con éxito");
         resetCart();   // Limpia items + paymentMethod antes de cerrar el POS
         cancelForm();
         fetchAllForPOS();
       },
       onError: (err: any) => {
+        if (err?.response?.status === 403) {
+          idempotencyKeyRef.current = null;
+          fetchAllForPOS(); // Forzar actualización por si hubo cambios de precio/stock
+        }
         if (err.name === "CanceledError" || err.name === "AbortError" || DOMException && err instanceof DOMException && err.name === "AbortError") {
           toast.error("Venta cancelada (operación abortada)");
         } else {
@@ -430,7 +442,8 @@ const SalesManagerInner = () => {
       {/* POS fullscreen */}
       <AnimatePresence>
         {isFormOpen && (
-          <SalePOSForm
+          <POSGuardOverlay>
+            <SalePOSForm
             items={items}
             onCancel={cancelForm}
             onAddItem={handleAddItem}
@@ -445,16 +458,17 @@ const SalesManagerInner = () => {
             searchTerm={searchTerm}
             onSearch={setSearchTerm}
             onOpenScanner={() => setIsScannerOpen(true)}
-            exchangeRate={exchangeRate}
+            exchangeRate={String(exchangeRate)}
             cartPulse={cartPulse}
             submitBtnRef={submitBtnRef}
             paymentSelectRef={paymentSelectRef}
             searchInputRef={searchInputRef}
             isCartOpen={isCartOpen}
             setIsCartOpen={handleCloseCart}
-            hasOpenShift={true} // Temporalmente en true para permitir vender sin turno: !!currentShift
+            hasOpenShift={!!currentShift}
             onOpenCashShift={() => setIsCashShiftModalOpen(true)}
           />
+          </POSGuardOverlay>
         )}
       </AnimatePresence>
 
