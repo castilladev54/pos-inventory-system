@@ -3,7 +3,8 @@ import Big from 'big.js';
 import { Purchase } from '../models/Purchase.js';
 import { PurchaseDetail } from '../models/PurchaseDetail.js';
 import { Product } from '../models/Product.js';
-import { BranchInventory } from '../models/BranchInventory.js';
+import { Inventory } from '../models/Inventory.js';
+import { StockMovement, StockMovementType } from '../models/StockMovement.js';
 import { SupplierPayment } from '../models/SupplierPayment.js';
 import { Branch } from '../models/Branch.js';
 import { BusinessOwnerId, ProductId, BranchId } from '../types/brands.js';
@@ -80,11 +81,25 @@ export class PurchaseService {
       await purchase.save({ session });
 
       for (const item of items) {
-        await BranchInventory.findOneAndUpdate(
+                // Update Inventory atomically and record stock movement
+        const preInv = await Inventory.findOne({ branch_id: branchId, product_id: item.product_id, owner_id: ownerId }).session(session);
+        const prevQty = preInv?.quantity ?? mongoose.Types.Decimal128.fromString('0');
+        const invResult = await Inventory.findOneAndUpdate(
           { branch_id: branchId, product_id: item.product_id, owner_id: ownerId },
-          { $inc: { stock: item.quantity } },
-          { upsert: true, session }
+          { $inc: { quantity: mongoose.Types.Decimal128.fromString(item.quantity) } },
+          { upsert: true, session, new: true }
         );
+        await StockMovement.create({
+          inventory_id: invResult._id,
+          product_id: item.product_id,
+          branch_id: branchId,
+          owner_id: ownerId,
+          type: StockMovementType.PURCHASE,
+          quantity_change: mongoose.Types.Decimal128.fromString(item.quantity),
+          previous_quantity: prevQty,
+          new_quantity: invResult.quantity,
+          created_by: ownerId
+        }, { session });
 
         const detail = new PurchaseDetail({
           purchase_id: purchase._id,

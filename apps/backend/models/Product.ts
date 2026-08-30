@@ -56,19 +56,19 @@ const productSchema = new Schema<IProduct>(
   }
 );
 
-// Relación virtual con BranchInventory
-productSchema.virtual('branchInventories', {
-  ref: 'BranchInventory',
+// Relación virtual con Inventory
+productSchema.virtual('inventories', {
+  ref: 'Inventory',
   localField: '_id',
   foreignField: 'product_id'
 });
 
-// Virtual para el stock consolidado (requiere `.populate('branchInventories')`)
+// Virtual para el stock consolidado (requiere `.populate('inventories')`)
 productSchema.virtual("totalStock").get(function (this: any) {
-  if (!this.branchInventories) {
+  if (!this.inventories) {
     return 0;
   }
-  return this.branchInventories.reduce((acc: number, curr: any) => acc + (curr.stock || 0), 0);
+  return this.inventories.reduce((acc: number, curr: any) => acc + (curr.quantity || 0), 0);
 });
 
 productSchema.index({ barcode: 1, user: 1 }, { unique: true, sparse: true });

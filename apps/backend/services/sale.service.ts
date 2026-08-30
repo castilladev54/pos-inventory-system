@@ -3,7 +3,8 @@ import Big from 'big.js';
 import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import { Product } from '../models/Product.js';
-import { BranchInventory } from '../models/BranchInventory.js';
+import { Inventory } from '../models/Inventory.js';
+import { StockMovement, StockMovementType } from '../models/StockMovement.js';
 import { Branch } from '../models/Branch.js';
 import { BusinessOwnerId, ActorId, ProductId, BranchId } from '../types/brands.js';
 import type { PaymentMethod } from '@inventory/shared';
@@ -94,14 +95,17 @@ export const createSaleProcess = async (
       // TODO: Ajustar según tu regla de dominio real
       const allowNegativeStock = true; 
 
-      let result = await BranchInventory.findOneAndUpdate(
+      const preInventory = await Inventory.findOne({ branch_id: branchId, product_id: item.product_id, owner_id: businessOwnerId }).session(session);
+      const previousQuantity = preInventory?.quantity ?? mongoose.Types.Decimal128.fromString('0');
+
+      let result = await Inventory.findOneAndUpdate(
         {
           branch_id: branchId,
           product_id: item.product_id,
           owner_id: businessOwnerId,
-          stock: { $gte: qtyDecimal }
+          quantity: { $gte: qtyDecimal }
         },
-        { $inc: { stock: negQtyDecimal } },
+        { $inc: { quantity: negQtyDecimal } },
         { session, new: true }
       );
 
@@ -110,19 +114,33 @@ export const createSaleProcess = async (
           throw new InsufficientStockError(product.name, item.product_id.toString());
         }
 
-        result = await BranchInventory.findOneAndUpdate(
+        result = await Inventory.findOneAndUpdate(
           {
             branch_id: branchId,
             product_id: item.product_id,
             owner_id: businessOwnerId
           },
           {
-            $inc: { stock: negQtyDecimal },
-            $setOnInsert: { min_stock: mongoose.Types.Decimal128.fromString('0') }
+            $inc: { quantity: negQtyDecimal },
+            $setOnInsert: { min_stock_alert: mongoose.Types.Decimal128.fromString('0') }
           },
           { session, new: true, upsert: true }
         );
       }
+
+      // Registrar movimiento de stock (event sourcing)
+      await StockMovement.create({
+        inventory_id: result._id,
+        product_id: item.product_id,
+        branch_id: branchId,
+        owner_id: businessOwnerId,
+        type: StockMovementType.SALE,
+        quantity_change: negQtyDecimal,
+        previous_quantity: previousQuantity,
+        new_quantity: result.quantity,
+        reference_id: undefined, // se enlazará a la venta después de crearla
+        created_by: soldBy
+      }, { session });
     }
 
     // Crear el documento de Venta (shift_id proviene del middleware de turno activo)
@@ -214,8 +232,8 @@ export interface UpdateSaleInput {
 /**
  * Servicio Transaccional para Editar una Venta.
  *
- * Estrategia de stock sobre BranchInventory (dentro de una sola transacción ACID):
- *   1. Restaurar el stock de los ítems ORIGINALES en BranchInventory.
+ * Estrategia de stock sobre Inventory (dentro de una sola transacción ACID):
+ *   1. Restaurar el stock de los ítems ORIGINALES en Inventory.
  *   2. Validar disponibilidad y descontar el stock de los NUEVOS ítems.
  *   3. Reemplazar los SaleDetail y actualizar la venta.
  */
@@ -247,12 +265,12 @@ export const updateSaleProcess = async (
     }
 
     if (items && items.length > 0) {
-      // 1. Restaurar stock original en BranchInventory (usando upsert por seguridad si el registro fue borrado)
+      // 1. Restaurar stock original en Inventory (usando upsert por seguridad si el registro fue borrado)
       const originalDetails = await SaleDetail.find({ sale_id: saleId }).session(session);
       for (const detail of originalDetails) {
-        await BranchInventory.findOneAndUpdate(
+        await Inventory.findOneAndUpdate(
           { branch_id: effectiveBranchId, product_id: detail.product_id, owner_id: ownerId },
-          { $inc: { stock: detail.quantity } },
+          { $inc: { quantity: detail.quantity } },
           { session, upsert: true }
         );
       }
@@ -272,7 +290,7 @@ export const updateSaleProcess = async (
         newTotal = Big(newTotal).plus(lineTotal).toString();
       }
 
-      // 3. Decrementar stock en BranchInventory — mutación atómica con filtro $gte.
+      // 3. Decrementar stock en Inventory — mutación atómica con filtro $gte.
       for (const item of items) {
         const product = productsMap.get(item.product_id.toString())!;
         const qtyDecimal = mongoose.Types.Decimal128.fromString(item.quantity);
@@ -281,14 +299,17 @@ export const updateSaleProcess = async (
         // TODO: Ajustar según tu regla de dominio real
         const allowNegativeStock = true;
 
-        let result = await BranchInventory.findOneAndUpdate(
+        const preInventory = await Inventory.findOne({ branch_id: effectiveBranchId, product_id: item.product_id, owner_id: ownerId }).session(session);
+        const previousQuantity = preInventory?.quantity ?? mongoose.Types.Decimal128.fromString('0');
+
+        let result = await Inventory.findOneAndUpdate(
           {
             branch_id: effectiveBranchId,
             product_id: item.product_id,
             owner_id: ownerId,
-            stock: { $gte: qtyDecimal }
+            quantity: { $gte: qtyDecimal }
           },
-          { $inc: { stock: negQtyDecimal } },
+          { $inc: { quantity: negQtyDecimal } },
           { session, new: true }
         );
 
@@ -297,19 +318,33 @@ export const updateSaleProcess = async (
             throw new InsufficientStockError(product.name, item.product_id.toString());
           }
 
-          result = await BranchInventory.findOneAndUpdate(
+          result = await Inventory.findOneAndUpdate(
             {
               branch_id: effectiveBranchId,
               product_id: item.product_id,
               owner_id: ownerId
             },
             {
-              $inc: { stock: negQtyDecimal },
-              $setOnInsert: { min_stock: mongoose.Types.Decimal128.fromString('0') }
+              $inc: { quantity: negQtyDecimal },
+              $setOnInsert: { min_stock_alert: mongoose.Types.Decimal128.fromString('0') }
             },
             { session, new: true, upsert: true }
           );
         }
+
+        // Registrar movimiento de stock (event sourcing)
+        await StockMovement.create({
+          inventory_id: result._id,
+          product_id: item.product_id,
+          branch_id: effectiveBranchId,
+          owner_id: ownerId,
+          type: StockMovementType.SALE,
+          quantity_change: negQtyDecimal,
+          previous_quantity: previousQuantity,
+          new_quantity: result.quantity,
+          reference_id: undefined,
+          created_by: ownerId
+        }, { session });
       }
 
       // 4. Reemplazar SaleDetail
@@ -378,11 +413,11 @@ export const cancelSaleProcess = async (
 
     const details = await SaleDetail.find({ sale_id: saleId }).session(session);
 
-    // Restaurar stock en BranchInventory — filtro de tenant garantizado por la verificación previa
+    // Restaurar stock en Inventory — filtro de tenant garantizado por la verificación previa
     for (const detail of details) {
-      await BranchInventory.findOneAndUpdate(
+      await Inventory.findOneAndUpdate(
         { branch_id: effectiveBranchId, product_id: detail.product_id, owner_id: ownerId },
-        { $inc: { stock: detail.quantity } },
+        { $inc: { quantity: detail.quantity } },
         { session, upsert: true }
       );
     }

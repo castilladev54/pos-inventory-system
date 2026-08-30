@@ -1,7 +1,8 @@
 import mongoose, { ClientSession } from 'mongoose';
 import { InventoryAdjustment } from '../models/InventoryAdjustment.js';
 import { Product } from '../models/Product.js';
-import { BranchInventory } from '../models/BranchInventory.js';
+import { Inventory } from '../models/Inventory.js';
+import { StockMovement, StockMovementType } from '../models/StockMovement.js';
 import { Branch } from '../models/Branch.js';
 import { BusinessOwnerId, ActorId, ProductId, BranchId } from '../types/brands.js';
 import { bumpBranchCacheVersion } from '../lib/redis.js';
