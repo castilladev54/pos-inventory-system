@@ -61,15 +61,14 @@ api.interceptors.request.use(
       return config;
     }
 
-    // 2. Bloqueo estricto: Cero suposiciones
-    if (!activeBranchId) {
-      return Promise.reject(
-        new Error("CLIENT_ERROR: Falta el contexto de sucursal (x-branch-id). Transacción abortada en el frontend.")
-      );
+    // 2. Bloqueo relajado: Header opcional
+    if (activeBranchId) {
+      config.headers['x-branch-id'] = activeBranchId;
     }
+    // No se aborta la petición si falta la sucursal; el backend manejará la ausencia.
 
     // 3. Inyección local
-    config.headers['x-branch-id'] = activeBranchId;
+    // Header injected above if branchId exists
 
     return config;
   },

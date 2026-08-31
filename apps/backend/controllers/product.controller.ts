@@ -65,7 +65,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     const ttl = normalizedSearch.length >= 3 ? 30 : 300;
 
     // 2. Validación estricta de ordenación (Whitelist)
-    const allowedSortFields = ['createdAt', 'name', 'price', 'stock'];
+    const allowedSortFields = ['createdAt', 'name', 'price', 'total_stock'];
     const sortBy = allowedSortFields.includes(req.query.sortBy as string) 
       ? (req.query.sortBy as string) 
       : 'createdAt';
@@ -97,40 +97,25 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       const [result] = await Product.aggregate([
         { $match: matchStage },
         
-        // Cruce aislado del inventario por sucursal
+        // Cruce global del inventario en todas las sucursales
         {
           $lookup: {
-            from: 'branchinventories',
-            let: { productId: '$_id', activeBranchId: new mongoose.Types.ObjectId(branchId) },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ['$product_id', '$$productId'] },
-                      { $eq: ['$branch_id', '$$activeBranchId'] }
-                    ]
-                  }
-                }
-              }
-            ],
+            from: 'inventories',
+            localField: '_id',
+            foreignField: 'product_id',
             as: 'inventoryData'
           }
         },
-        {
-          $unwind: {
-            path: '$inventoryData',
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        // Aplanamiento del stock determinista
+        // Aplanamiento del stock total sumando todas las sucursales
         {
           $addFields: {
-            stock: { $ifNull: ['$inventoryData.stock', 0] }
+            total_stock: { 
+              $ifNull: [{ $sum: '$inventoryData.quantity' }, 0] 
+            }
           }
         },
         
-        ...(req.query.hasDebt === 'true' ? [{ $match: { stock: { $lt: 0 } } }] : []),
+        ...(req.query.hasDebt === 'true' ? [{ $match: { total_stock: { $lt: 0 } } }] : []),
         
         // Cruce y proyección estricta de la categoría
         {

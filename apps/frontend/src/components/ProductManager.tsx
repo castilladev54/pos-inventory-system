@@ -105,8 +105,8 @@ const buildColumns = (toBsFn: (usd: string, rate: string) => string, rate: numbe
     ),
   },
   {
-    key: 'stock',
-    label: 'Stock',
+    key: 'total_stock',
+    label: 'Stock Global',
     render: (val, row) => {
       const formattedStock = new Intl.NumberFormat('es-VE', {
         minimumFractionDigits: 0,
@@ -172,17 +172,16 @@ const ProductManagerInner = () => {
   };
 
   const handleEdit = (product: Product) => {
-    const stockVal = String((product as any).stock ?? 0);
     setEditingId(product._id);
     setFormData({
       name: product.name,
       description: product.description || '',
       price: String(product.price),
-      stock: stockVal,
+      stock: '',
       category: typeof product.category === 'object' && product.category ? product.category._id : String(product.category),
       unit_type: product.unit_type || 'unidad',
       barcode: product.barcode || '',
-      new_stock: stockVal,
+      new_stock: '',
       stock_reason: '',
     });
     setIsFormOpen(true);
@@ -190,13 +189,6 @@ const ProductManagerInner = () => {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-
-    const isStockChanged = editingId && Number(formData.new_stock) !== Number(formData.stock);
-
-    if (isStockChanged && !formData.stock_reason) {
-      toast.error('Debe seleccionar un motivo para el ajuste de stock.');
-      return;
-    }
 
     // Payload base: solo campos de catálogo (sin dependencias logísticas)
     const payload: any = {
@@ -209,16 +201,7 @@ const ProductManagerInner = () => {
     };
 
     if (editingId) {
-      // Solo inyectar campos logísticos en el flujo de edición
-      if (isStockChanged) {
-        if (!activeBranchId) {
-          toast.error('Debes seleccionar una sucursal activa para modificar el inventario');
-          return;
-        }
-        payload.new_stock = Number(formData.new_stock);
-        payload.stock_reason = formData.stock_reason;
-        payload.branch_id = activeBranchId;
-      }
+      // Creación/Edición pura de catálogo — sin stock_inicial, sin branch_id
 
       toast.promise(
         updateMutation.mutateAsync({ id: editingId, data: payload }),
@@ -364,47 +347,6 @@ const ProductManagerInner = () => {
               placeholder="Ej. 999.99"
             />
 
-            {editingId ? (
-              <div className="flex flex-col gap-1 col-span-1 md:col-span-2 p-4 border border-white/5 bg-white/5 rounded-xl">
-                <div className="flex justify-between items-center mb-3">
-                  <label className="block text-sm font-medium text-gray-300">
-                    Stock en Estantería (Físico)
-                  </label>
-                  <span className="text-xs text-gray-400 bg-black/40 px-2 py-1 rounded border border-white/5">
-                    Stock actual del sistema: {formData.stock}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input
-                    type="number"
-                    name="new_stock"
-                    value={formData.new_stock}
-                    onChange={handleChange}
-                    required
-                    min="0"
-                    step="0.01"
-                    placeholder="Cantidad real en tienda"
-                    className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition font-bold"
-                  />
-
-                  {Number(formData.new_stock) !== Number(formData.stock) && (
-                    <select
-                      name="stock_reason"
-                      value={formData.stock_reason}
-                      onChange={handleChange}
-                      required
-                      className={selectClass}
-                    >
-                      <option value="" disabled>Motivo del ajuste...</option>
-                      {STOCK_REASONS.map((r) => (
-                        <option key={r.value} value={r.value}>{r.label}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              </div>
-            ) : null}
 
             {/* Código de barras con botón escáner */}
             <div className="flex flex-col gap-1">
@@ -526,10 +468,8 @@ const ProductManagerInner = () => {
 
 export default function ProductManager() {
   return (
-    <RequireBranchGuard>
-      <RateGuard>
-        <ProductManagerInner />
-      </RateGuard>
-    </RequireBranchGuard>
+    <RateGuard>
+      <ProductManagerInner />
+    </RateGuard>
   );
 }

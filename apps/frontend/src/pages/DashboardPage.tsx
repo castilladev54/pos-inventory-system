@@ -12,6 +12,7 @@ import AdminUserCreator from '../components/AdminUserCreator';
 import StaffManager from '../components/StaffManager';
 import StockTransferManager from '../components/inventory/StockTransferManager';
 import PermissionGuard from '../components/PermissionGuard';
+import { RequireBranchGuard } from '../components/guards/RequireBranchGuard';
 import { AiChatWindow } from '../components/organisms/AiChatWindow';
 import SettingsGrid from '../components/settings/SettingsGrid';
 import BranchManager from '../components/settings/BranchManager';
@@ -44,7 +45,9 @@ const DashboardPage = () => {
         )}
         {activeTab === 'sales' && (
           <PermissionGuard requiredPermission="pos_access" fallback={<AccessDenied />}>
-            <SalesManager />
+            <RequireBranchGuard>
+              <SalesManager />
+            </RequireBranchGuard>
           </PermissionGuard>
         )}
         {activeTab === 'analytics' && (
@@ -59,7 +62,9 @@ const DashboardPage = () => {
         )}
         {activeTab === 'transfers' && (
           <PermissionGuard requiredPermission="inventory_access" fallback={<AccessDenied />}>
-            <StockTransferManager />
+            <RequireBranchGuard>
+              <StockTransferManager />
+            </RequireBranchGuard>
           </PermissionGuard>
         )}
         {/* fallback extra para rutas admin custom */}

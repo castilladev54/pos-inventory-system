@@ -81,7 +81,7 @@ export const createProductBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   barcode: z.string().min(1, 'Barcode cannot be empty').optional(),
-  price: numericString,
+  price: z.coerce.number().positive('El precio debe ser mayor a 0'),
   unit_type: z.enum(['unidad', 'kg', 'litro', 'metro'] as const).optional(),
   category: z.string().regex(OBJECT_ID_REGEX, 'Invalid Category ID format'),
   max_debt_limit: numericString.optional(),
