@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
 import Big from 'big.js';
 import { Branch } from '../models/Branch.js';
-import { BranchInventory } from '../models/BranchInventory.js';
-import { InventoryAdjustment } from '../models/InventoryAdjustment.js';
+import { Inventory } from '../models/Inventory.js';
+import { StockMovement, StockMovementType } from '../models/StockMovement.js';
 
 interface TransferItem {
   product_id: string;
@@ -54,51 +54,53 @@ export const transferStockBetweenBranches = async ({
       }
 
       // Restar stock de la sucursal de origen
-      const sourceInventory = await BranchInventory.findOne({
+      const sourceInventory = await Inventory.findOne({
         branch_id: sourceBranchId,
         product_id: product_id
       }).session(session);
 
-      if (!sourceInventory || Big(sourceInventory.stock).lt(Big(quantity))) {
+      if (!sourceInventory || Big(sourceInventory.quantity as any).lt(Big(quantity))) {
         throw new Error(`Stock insuficiente en sucursal de origen para realizar la transferencia.`);
       }
 
-      const previousSourceStock = sourceInventory.stock.toString();
-      sourceInventory.stock = Big(sourceInventory.stock).minus(Big(quantity)).toString();
+      const previousSourceQuantity = sourceInventory.quantity.toString();
+      sourceInventory.quantity = Big(sourceInventory.quantity as any).minus(Big(quantity)).toString() as any;
       await sourceInventory.save({ session });
 
       // Registrar Kardex de salida
-      await InventoryAdjustment.create([{
+      await StockMovement.create([{
+        inventory_id: sourceInventory._id,
         product_id: product_id,
         branch_id: sourceBranchId,
-        user_id: actorId,
-        previous_stock: previousSourceStock,
-        new_stock: sourceInventory.stock,
-        difference: Big(quantity).times(-1).toString(),
-        reason: 'transfer_out',
-        notes: notes || `Transferencia hacia sucursal ${destBranch.name}`
+        owner_id: businessOwnerId,
+        type: StockMovementType.TRANSFER_OUT,
+        quantity_change: Big(quantity).times(-1).toString(),
+        previous_quantity: previousSourceQuantity,
+        new_quantity: sourceInventory.quantity.toString(),
+        created_by: actorId,
+        reason: notes || `Transferencia hacia sucursal ${destBranch.name}`
       }], { session });
 
       // Sumar stock en la sucursal de destino
-      let destInventory = await BranchInventory.findOne({
+      let destInventory = await Inventory.findOne({
         branch_id: destinationBranchId,
         product_id: product_id
       }).session(session);
 
-      let previousDestStock = '0';
+      let previousDestQuantity = '0';
       if (!destInventory) {
         // Crear el inventario si no existe en la sucursal de destino
-        const newDestInventoryArray = await BranchInventory.create([{
+        const newDestInventoryArray = await Inventory.create([{
           owner_id: businessOwnerId,
           branch_id: destinationBranchId,
           product_id: product_id,
-          stock: quantity,
-          min_stock: '0'
+          quantity: quantity,
+          min_stock_alert: '0'
         }], { session });
         destInventory = newDestInventoryArray[0] ?? null;
       } else {
-        previousDestStock = destInventory.stock.toString();
-        destInventory.stock = Big(destInventory.stock).plus(Big(quantity)).toString();
+        previousDestQuantity = destInventory.quantity.toString();
+        destInventory.quantity = Big(destInventory.quantity as any).plus(Big(quantity)).toString() as any;
         await destInventory.save({ session });
       }
 
@@ -107,15 +109,17 @@ export const transferStockBetweenBranches = async ({
       }
 
       // Registrar Kardex de entrada
-      await InventoryAdjustment.create([{
+      await StockMovement.create([{
+        inventory_id: destInventory._id,
         product_id: product_id,
         branch_id: destinationBranchId,
-        user_id: actorId,
-        previous_stock: previousDestStock,
-        new_stock: destInventory.stock,
-        difference: quantity,
-        reason: 'transfer_in',
-        notes: notes || `Transferencia desde sucursal ${sourceBranch.name}`
+        owner_id: businessOwnerId,
+        type: StockMovementType.TRANSFER_IN,
+        quantity_change: quantity,
+        previous_quantity: previousDestQuantity,
+        new_quantity: destInventory.quantity.toString(),
+        created_by: actorId,
+        reason: notes || `Transferencia desde sucursal ${sourceBranch.name}`
       }], { session });
     }
 
