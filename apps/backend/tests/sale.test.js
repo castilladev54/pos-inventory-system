@@ -9,7 +9,7 @@ import { Product } from '../models/Product.js';
 import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import { Branch } from '../models/Branch.ts';
-import { BranchInventory } from '../models/BranchInventory.ts';
+import { Inventory } from '../models/Inventory.ts';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
 
@@ -60,7 +60,7 @@ afterEach(async () => {
   await Sale.deleteMany({});
   await SaleDetail.deleteMany({});
   await Product.deleteMany({});
-  await BranchInventory.deleteMany({});
+  await Inventory.deleteMany({});
   vi.clearAllMocks();
 });
 
@@ -110,11 +110,11 @@ describe('Sale Controllers Integration', () => {
     productId = product._id.toString();
 
     // Inyectar el stock en la sucursal de prueba
-    await BranchInventory.create({
+    await Inventory.create({ owner_id: userId, 
       product_id: product._id,
       branch_id: branchId,
-      stock: 20,
-      min_stock: 0
+      quantity: 20,
+      min_quantity: 0
     });
   });
 
@@ -136,7 +136,7 @@ describe('Sale Controllers Integration', () => {
 
       const response = await request(app)
         .post('/api/sales')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send(payload);
 
       expect(response.status).toBe(201);
@@ -154,9 +154,9 @@ describe('Sale Controllers Integration', () => {
       expect(details[0].quantity).toBe(5.5);
 
       // 2. STOCK DECREMENTADO AUTOMÁTICAMENTE: 
-      // Teníamos 20 de inventario, acabamos de vender 5.5 -> Quedan 14.5 en BranchInventory
-      const updatedInventory = await BranchInventory.findOne({ product_id: productId, branch_id: branchId });
-      expect(updatedInventory.stock).toBe(14.5);
+      // Teníamos 20 de inventario, acabamos de vender 5.5 -> Quedan 14.5 en Inventory
+      const updatedInventory = await Inventory.findOne({ product_id: productId, branch_id: branchId });
+      expect(updatedInventory.quantity).toBe(14.5);
     });
 
     it('should return 400 validation error if missing required Zod fields (e.g., payment_method)', async () => {
@@ -168,7 +168,7 @@ describe('Sale Controllers Integration', () => {
 
       const response = await request(app)
         .post('/api/sales')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send(payload);
 
       expect(response.status).toBe(400); 
@@ -185,15 +185,15 @@ describe('Sale Controllers Integration', () => {
 
       const response = await request(app)
         .post('/api/sales')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send(payload);
 
       expect(response.status).toBe(400); 
       expect(response.body.message).toContain('Stock insuficiente');
       
-      // El stock debió quedarse en 20 intacto en BranchInventory
-      const updatedInventory = await BranchInventory.findOne({ product_id: productId, branch_id: branchId });
-      expect(updatedInventory.stock).toBe(20);
+      // El stock debió quedarse en 20 intacto en Inventory
+      const updatedInventory = await Inventory.findOne({ product_id: productId, branch_id: branchId });
+      expect(updatedInventory.quantity).toBe(20);
     });
 
     it('should return 404 if product inside the items array does not exist', async () => {
@@ -207,7 +207,7 @@ describe('Sale Controllers Integration', () => {
 
       const response = await request(app)
         .post('/api/sales')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send(payload);
 
       expect(response.status).toBe(404);
@@ -217,14 +217,14 @@ describe('Sale Controllers Integration', () => {
 
   describe('GET /api/sales', () => {
     it('should list all available sales for the specific user', async () => {
-      await request(app).post('/api/sales').set(authHeaders).send({
+      await request(app).post('/api/sales').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         customer_id: userId,
         payment_method: 'Efectivo',
         branch_id: branchId,
         items: [{ product_id: productId, quantity: 2, unit_price: 50 }]
       });
 
-      const response = await request(app).get('/api/sales').set(authHeaders);
+      const response = await request(app).get('/api/sales').set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.sales).toHaveLength(1);
@@ -236,7 +236,7 @@ describe('Sale Controllers Integration', () => {
   describe('GET /api/sales/:id', () => {
     it('should fetch a single specific sale aggregating its items (details array)', async () => {
       // 1. Crear
-      const createRes = await request(app).post('/api/sales').set(authHeaders).send({
+      const createRes = await request(app).post('/api/sales').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
              customer_id: userId,
              payment_method: 'Divisas',
              branch_id: branchId,
@@ -245,7 +245,7 @@ describe('Sale Controllers Integration', () => {
       const saleId = createRes.body.sale._id;
 
       // 2. Levantar la data individual
-      const response = await request(app).get(`/api/sales/${saleId}`).set(authHeaders);
+      const response = await request(app).get(`/api/sales/${saleId}`).set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.sale._id).toBe(saleId);
@@ -259,7 +259,7 @@ describe('Sale Controllers Integration', () => {
 
     it('should return 404 for grabbing a non-existent sale ID', async () => {
       const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app).get(`/api/sales/${fakeId}`).set(authHeaders);
+      const response = await request(app).get(`/api/sales/${fakeId}`).set({ ...authHeaders, 'x-branch-id': branchId.toString() });
       
       expect(response.status).toBe(404);
     });

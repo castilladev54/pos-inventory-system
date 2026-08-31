@@ -89,7 +89,8 @@ export class PurchaseService {
           { $inc: { quantity: mongoose.Types.Decimal128.fromString(item.quantity) } },
           { upsert: true, session, new: true }
         );
-        await StockMovement.create({
+        if (!invResult) throw new Error('Error al actualizar inventario en la compra');
+        await StockMovement.create([{
           inventory_id: invResult._id,
           product_id: item.product_id,
           branch_id: branchId,
@@ -99,7 +100,7 @@ export class PurchaseService {
           previous_quantity: prevQty,
           new_quantity: invResult.quantity,
           created_by: ownerId
-        }, { session });
+        }], { session });
 
         const detail = new PurchaseDetail({
           purchase_id: purchase._id,

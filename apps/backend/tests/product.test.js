@@ -93,7 +93,7 @@ describe('Product Controllers Integration', () => {
     it('should create a new product successfully with unit_type (kg support)', async () => {
       const response = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'Test Product',
           description: 'A great test product',
@@ -106,7 +106,7 @@ describe('Product Controllers Integration', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.product.name).toBe('Test Product');
       expect(response.body.product.price).toBe(150);
-      // stock ya no vive en Product — migrado a BranchInventory
+      // stock ya no vive en Product — migrado a Inventory
       expect(response.body.product.category).toBe(categoryId);
       expect(response.body.product.user).toBe(userId);
       expect(response.body.product.unit_type).toBe('kg');
@@ -116,7 +116,7 @@ describe('Product Controllers Integration', () => {
       const fakeCategoryId = new mongoose.Types.ObjectId().toString(); // ID válido pero no existente
       const response = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'Test Product Fake Cat',
           price: 100,
@@ -131,7 +131,7 @@ describe('Product Controllers Integration', () => {
     it('should return validation error if required fields are missing', async () => {
       const response = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           // Falta 'name' y 'price'
           category: categoryId
@@ -146,7 +146,7 @@ describe('Product Controllers Integration', () => {
     it('should return empty list if user has no products', async () => {
       const response = await request(app)
         .get('/api/products')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -157,7 +157,7 @@ describe('Product Controllers Integration', () => {
       // Creamos un producto primero
       await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'My Custom Product',
           price: 60,
@@ -166,7 +166,7 @@ describe('Product Controllers Integration', () => {
 
       const response = await request(app)
         .get('/api/products')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.products).toHaveLength(1);
@@ -181,7 +181,7 @@ describe('Product Controllers Integration', () => {
       // Creamos primero
       const createRes = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'Target Product',
           price: 75,
@@ -192,7 +192,7 @@ describe('Product Controllers Integration', () => {
       // Buscamos
       const response = await request(app)
         .get(`/api/products/${productId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -204,7 +204,7 @@ describe('Product Controllers Integration', () => {
       const fakeId = new mongoose.Types.ObjectId().toString();
       const response = await request(app)
         .get(`/api/products/${fakeId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
@@ -217,7 +217,7 @@ describe('Product Controllers Integration', () => {
       // Creamos
       const createRes = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'Old Name',
           price: 10,
@@ -229,12 +229,12 @@ describe('Product Controllers Integration', () => {
       // Actualizamos
       const response = await request(app)
         .put(`/api/products/${productId}`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'New Name',
           price: 20,
           unit_type: 'litro',
-          stock: 99 // Este valor debería ignorarse según la lógica del controlador
+          quantity: 99 // Este valor debería ignorarse según la lógica del controlador
         });
 
       expect(response.status).toBe(200);
@@ -242,20 +242,20 @@ describe('Product Controllers Integration', () => {
       expect(response.body.product.name).toBe('New Name');
       expect(response.body.product.price).toBe(20);
       expect(response.body.product.unit_type).toBe('litro');
-      // stock ya no vive en Product — migrado a BranchInventory
+      // stock ya no vive en Product — migrado a Inventory
     });
 
     it('should return 400 if trying to update with non-existent category', async () => {
       const createRes = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Prod', price: 10, category: categoryId });
       const productId = createRes.body.product._id;
 
       const fakeCategoryId = new mongoose.Types.ObjectId().toString();
       const response = await request(app)
         .put(`/api/products/${productId}`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ category: fakeCategoryId });
 
       expect(response.status).toBe(400);
@@ -269,7 +269,7 @@ describe('Product Controllers Integration', () => {
       // Creamos
       const createRes = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'To be deleted',
           price: 100,
@@ -280,7 +280,7 @@ describe('Product Controllers Integration', () => {
       // Eliminamos
       const response = await request(app)
         .delete(`/api/products/${productId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -289,7 +289,7 @@ describe('Product Controllers Integration', () => {
       // Verificamos que ya no exista
       const verifyRes = await request(app)
         .get(`/api/products/${productId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
       expect(verifyRes.status).toBe(404);
     });
 
@@ -297,7 +297,7 @@ describe('Product Controllers Integration', () => {
       const fakeId = new mongoose.Types.ObjectId().toString();
       const response = await request(app)
         .delete(`/api/products/${fakeId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);

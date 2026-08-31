@@ -29,7 +29,7 @@ const productSchema = new Schema<IProduct>(
       type: String,
       trim: true,
     },
-    price: DecimalConfig,
+    price: DecimalConfig as any,
     // El campo stock global ha sido eliminado
     category: {
       type: Schema.Types.ObjectId,

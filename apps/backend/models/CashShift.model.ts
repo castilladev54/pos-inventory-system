@@ -70,10 +70,10 @@ const CashShiftSchema = new Schema<ICashShiftDocument>(
     timestamps: true,
     toJSON: {
       transform(_doc, ret) {
-        if (ret.opening_balance) ret.opening_balance = ret.opening_balance.toString();
-        if (ret.expected_balance) ret.expected_balance = ret.expected_balance.toString();
-        if (ret.closing_balance) ret.closing_balance = ret.closing_balance.toString();
-        if (ret.total_sales_amount) ret.total_sales_amount = ret.total_sales_amount.toString();
+        if (ret.opening_balance) ret.opening_balance = ret.opening_balance.toString() as any;
+        if (ret.expected_balance) ret.expected_balance = ret.expected_balance.toString() as any;
+        if (ret.closing_balance) ret.closing_balance = ret.closing_balance.toString() as any;
+        if (ret.total_sales_amount) ret.total_sales_amount = ret.total_sales_amount.toString() as any;
         return ret;
       },
     },

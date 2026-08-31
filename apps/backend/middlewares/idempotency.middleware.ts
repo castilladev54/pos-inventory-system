@@ -1,3 +1,4 @@
+import { Request, Response, NextFunction } from 'express';
 import { idempotencyHeaderSchema } from '@inventory/shared';
 import { redis } from '../lib/redis.js';
 import { getCurrentLogger } from '../lib/logger.js';
@@ -8,7 +9,7 @@ const IDEMPOTENCY_TTL_SECONDS = 86400; // 24 horas
  * Middleware que verifica si un request transaccional ya fue procesado o está en proceso,
  * utilizando Redis (SET NX) para implementar un cerrojo distribuido (Distributed Lock).
  */
-export const checkIdempotency = async (req, res, next) => {
+export const checkIdempotency = async (req: Request | any, res: Response, next: NextFunction) => {
   try {
     const key = req.headers['x-idempotency-key'];
     
@@ -21,7 +22,7 @@ export const checkIdempotency = async (req, res, next) => {
     // Validación estricta Zod UUID v4
     const parsed = idempotencyHeaderSchema.safeParse(key);
     if (!parsed.success) {
-      return res.status(400).json({ success: false, message: parsed.error.errors[0].message });
+      return res.status(400).json({ success: false, message: (parsed as any).error.errors[0].message });
     }
 
     const userId = req.user ? req.user._id.toString() : 'anonymous';
@@ -68,8 +69,8 @@ export const checkIdempotency = async (req, res, next) => {
  * Recibe la función del controlador original y la ejecuta.
  * Al terminar con éxito, almacena la respuesta en Redis antes de enviarla.
  */
-export const withIdempotency = (controllerFn) => {
-  return async (req, res, next) => {
+export const withIdempotency = (controllerFn: any) => {
+  return async (req: Request | any, res: Response | any, next: NextFunction) => {
     try {
       // Ejecuta la lógica central del controlador, devolviendo el objeto de respuesta
       const responsePayload = await controllerFn(req, res, next);

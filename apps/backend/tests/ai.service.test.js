@@ -71,7 +71,7 @@ describe('AI Service - getAIAdviceStreamService Integration', () => {
 
     const category = await Category.create({ name: 'Test Category', user: userId });
     
-    // Producto crítico (stock global en BranchInventory, pero el servicio IA aún consulta Product.stock si existe)
+    // Producto crítico (stock global en Inventory, pero el servicio IA aún consulta Product.stock si existe)
     const product = await Product.create({
       name: 'Critical Engine',
       price: 1500,

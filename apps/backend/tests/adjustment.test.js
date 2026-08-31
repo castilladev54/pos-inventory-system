@@ -6,9 +6,9 @@ import app from '../server.js';
 import { User } from '../models/User.js';
 import { Product } from '../models/Product.js';
 import { Category } from '../models/Category.js';
-import { InventoryAdjustment } from '../models/InventoryAdjustment.js';
+import { StockMovement } from '../models/StockMovement.js';
 import { Branch } from '../models/Branch.js';
-import { BranchInventory } from '../models/BranchInventory.js';
+import { Inventory } from '../models/Inventory.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeaders } from './helpers/auth.js';
 
@@ -56,8 +56,8 @@ afterAll(async () => {
 
 afterEach(async () => {
   await Product.deleteMany({});
-  await InventoryAdjustment.deleteMany({});
-  await BranchInventory.deleteMany({});
+  await StockMovement.deleteMany({});
+  await Inventory.deleteMany({});
   vi.clearAllMocks();
 });
 
@@ -94,7 +94,7 @@ describe('Inventory Adjustment Feature', () => {
 
   describe('POST /api/adjustments', () => {
     it('debe crear un ajuste y actualizar el stock del producto a la nueva cantidad', async () => {
-      // 1. Crear producto (sin stock inicial — ahora vive en BranchInventory)
+      // 1. Crear producto (sin stock inicial — ahora vive en Inventory)
       const product = await Product.create({
         name: 'Agua Min',
         price: 15,
@@ -103,28 +103,28 @@ describe('Inventory Adjustment Feature', () => {
         user: userId
       });
 
-      // 2. Ejecutar ajuste (el servicio hace upsert en BranchInventory, previous_stock = 0)
+      // 2. Ejecutar ajuste (el servicio hace upsert en Inventory, previous_quantity = 0)
       const response = await request(app)
         .post('/api/adjustments')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           product_id: product._id,
           branch_id: branchId,
-          new_stock: 50,
+          new_quantity: 50,
           reason: 'initial_count',
           notes: 'Conteo de caja inicial'
         });
 
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
-      expect(response.body.adjustment.difference).toBe(50);
+      expect(Number(response.body.adjustment.quantity_change)).toBe(50);
 
-      // Verificar que el stock se refleje en BranchInventory
-      const branchInv = await BranchInventory.findOne({ product_id: product._id, branch_id: branchId });
-      expect(branchInv.stock).toBe(50);
+      // Verificar que el stock se refleje en Inventory
+      const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
+      expect(Number(branchInv.quantity.toString())).toBe(50);
     });
 
-    it('debe fallar si no hay diferencia de stock (new_stock igual a previous_stock)', async () => {
+    it('debe fallar si no hay diferencia de stock (new_quantity igual a previous_quantity)', async () => {
       const product = await Product.create({
         name: 'Gorra',
         price: 100,
@@ -133,16 +133,16 @@ describe('Inventory Adjustment Feature', () => {
         user: userId
       });
 
-      // Pre-cargar BranchInventory con stock = 12
-      await BranchInventory.create({ product_id: product._id, branch_id: branchId, stock: 12 });
+      // Pre-cargar Inventory con quantity = 12
+      await Inventory.create({ owner_id: userId,  product_id: product._id, branch_id: branchId, owner_id: userId, quantity: 12 });
 
       const response = await request(app)
         .post('/api/adjustments')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           product_id: product._id,
           branch_id: branchId,
-          new_stock: 12, // Mismo stock
+          new_quantity: 12, // Mismo stock
           reason: 'correction'
         });
 
@@ -160,15 +160,15 @@ describe('Inventory Adjustment Feature', () => {
         user: userId
       });
 
-      await BranchInventory.create({ product_id: product._id, branch_id: branchId, stock: 10 });
+      await Inventory.create({ owner_id: userId,  product_id: product._id, branch_id: branchId, owner_id: userId, quantity: 10 });
 
       const response = await request(app)
         .post('/api/adjustments')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           product_id: product._id,
           branch_id: branchId,
-          new_stock: 7,
+          new_quantity: 7,
           reason: 'broken' // Reason inválido — Zod lo rechazará con 400
         });
       // Si Zod rechaza 'broken', esperar 400; si no, el ajuste se aplica
@@ -184,26 +184,26 @@ describe('Inventory Adjustment Feature', () => {
         user: userId
       });
 
-      // Stock inicial en BranchInventory = 10
-      await BranchInventory.create({ product_id: product._id, branch_id: branchId, stock: 10 });
+      // Stock inicial en Inventory = 10
+      await Inventory.create({ owner_id: userId,  product_id: product._id, branch_id: branchId, owner_id: userId, quantity: 10 });
 
       const response = await request(app)
         .post('/api/adjustments')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           product_id: product._id,
           branch_id: branchId,
-          new_stock: 7,
+          new_quantity: 7,
           reason: 'damaged'
         });
 
       expect(response.status).toBe(201);
-      expect(response.body.adjustment.difference).toBe(-3);
-      expect(response.body.adjustment.previous_stock).toBe(10);
+      expect(Number(response.body.adjustment.quantity_change)).toBe(-3);
+      expect(Number(response.body.adjustment.previous_quantity)).toBe(10);
 
-      // Verificar stock actualizado en BranchInventory
-      const branchInv = await BranchInventory.findOne({ product_id: product._id, branch_id: branchId });
-      expect(branchInv.stock).toBe(7);
+      // Verificar stock actualizado en Inventory
+      const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
+      expect(Number(branchInv.quantity.toString())).toBe(7);
     });
   });
 
@@ -219,21 +219,21 @@ describe('Inventory Adjustment Feature', () => {
 
       await request(app)
         .post('/api/adjustments')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           product_id: product._id,
           branch_id: branchId,
-          new_stock: 100,
+          new_quantity: 100,
           reason: 'initial_count'
         });
 
       const response = await request(app)
         .get('/api/adjustments')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.adjustments).toHaveLength(1);
-      expect(response.body.adjustments[0].reason).toBe('initial_count');
+      expect(response.body.adjustments[0].reason).toContain('initial_count');
       expect(response.body.adjustments[0].product_id.name).toBe('Prueba Get');
     });
   });

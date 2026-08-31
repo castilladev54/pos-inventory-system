@@ -106,7 +106,7 @@ describe('Suite de Integración: Motor Cambiario y Zonas Horarias', () => {
     // Inserción inicial vía API
     const res1 = await request(app)
       .post('/api/rates')
-      .set(authHeaders)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
       .send({ rate: 45.50, date: targetDate });
 
     expect(res1.status).toBe(200);
@@ -116,7 +116,7 @@ describe('Suite de Integración: Motor Cambiario y Zonas Horarias', () => {
     // Intento de sobrescritura del MISMO DÍA con nueva tasa
     const res2 = await request(app)
       .post('/api/rates')
-      .set(authHeaders)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
       .send({ rate: 46.20, date: targetDate });
 
     expect(res2.status).toBe(200);
@@ -141,7 +141,7 @@ describe('Suite de Integración: Motor Cambiario y Zonas Horarias', () => {
     // Tasa del 10 de julio
     const res1 = await request(app)
       .post('/api/rates')
-      .set(authHeaders)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
       .send({ rate: 45.00, date: '2026-07-10' });
 
     expect(res1.status).toBe(200);
@@ -150,7 +150,7 @@ describe('Suite de Integración: Motor Cambiario y Zonas Horarias', () => {
     // Tasa del 11 de julio (día siguiente)
     const res2 = await request(app)
       .post('/api/rates')
-      .set(authHeaders)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
       .send({ rate: 46.50, date: '2026-07-11' });
 
     expect(res2.status).toBe(200);
@@ -179,7 +179,7 @@ describe('Suite de Integración: Motor Cambiario y Zonas Horarias', () => {
     // Consultamos la tasa de hoy
     const res = await request(app)
       .get('/api/rates/today')
-      .set(authHeaders);
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
     // El sistema DEBE devolver null para que el frontend bloquee la caja
     expect(res.status).toBe(200);
@@ -200,7 +200,7 @@ describe('Suite de Integración: Motor Cambiario y Zonas Horarias', () => {
     // Ejecutamos una actualización manual de tasa
     await request(app)
       .post('/api/rates')
-      .set(authHeaders)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
       .send({ rate: 47.00 });
 
     // Verificamos que el controlador ejecutó el comando de purga en Redis

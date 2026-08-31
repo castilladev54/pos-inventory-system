@@ -1,5 +1,4 @@
 import mongoose, { ClientSession } from 'mongoose';
-import { InventoryAdjustment } from '../models/InventoryAdjustment.js';
 import { Product } from '../models/Product.js';
 import { Inventory } from '../models/Inventory.js';
 import { StockMovement, StockMovementType } from '../models/StockMovement.js';
@@ -13,7 +12,7 @@ import { bumpBranchCacheVersion } from '../lib/redis.js';
  * Ejecuta el proceso de ajuste de inventario de forma transaccional.
  *
  * Siempre requiere branchId — no existe modo-legado.
- * El ajuste opera sobre BranchInventory y registra el evento en InventoryAdjustment (Kardex).
+ * El ajuste opera sobre Inventory y registra el evento en StockMovement (Kardex).
  *
  * @param actorId         - ID del operador que ejecuta el ajuste
  * @param businessOwnerId - ID del dueño del negocio (tenant)
@@ -58,42 +57,38 @@ export const createAdjustmentProcess = async (
     }
 
     // 2. Leer el stock actual de la sucursal (puede no existir → Lazy Creation)
-    const inventoryItem = await BranchInventory.findOne({
+    const inventoryItem = await Inventory.findOne({
       product_id,
       branch_id: branchId,
       owner_id: businessOwnerId
     }).session(session);
 
-    // Coherencia Lectura/Escritura: el pipeline de lectura (getProducts) resuelve
-    // la ausencia de documento como stock = 0 mediante $ifNull. La escritura debe
-    // honrar el mismo contrato en lugar de lanzar un error 404.
-    const previous_stock = inventoryItem?.stock ?? 0;
+    const previous_stock = inventoryItem ? Number(inventoryItem.quantity.toString()) : 0;
     const difference = new_stock - previous_stock;
 
     if (difference === 0) {
       throw new Error('El nuevo stock es igual al stock actual. No hay nada que ajustar.');
     }
 
-    // 3. Aplicar el ajuste en BranchInventory (Upsert Atómico)
-    // Si el documento no existía, se crea con el stock inicial dentro de la misma
-    // transacción ACID, previniendo race conditions y garantizando atomicidad.
-    await BranchInventory.findOneAndUpdate(
+    // 3. Aplicar el ajuste en Inventory (Upsert Atómico)
+    const updatedInventory = await Inventory.findOneAndUpdate(
       { product_id, branch_id: branchId, owner_id: businessOwnerId },
-      { $set: { stock: new_stock } },
+      { $set: { quantity: new_stock } },
       { upsert: true, new: true, session, runValidators: true }
     );
 
-    // 4. Registrar en el Kardex (InventoryAdjustment) — fuente de verdad para auditoría
-    const adjustment = new InventoryAdjustment({
+    // 4. Registrar en el Kardex (StockMovement)
+    const adjustment = new StockMovement({
+      inventory_id: updatedInventory._id,
       product_id,
       branch_id: branchId,
-      user_id: businessOwnerId,
+      owner_id: businessOwnerId,
+      type: StockMovementType.MANUAL_ADJUSTMENT,
+      quantity_change: difference,
+      previous_quantity: previous_stock,
+      new_quantity: new_stock,
       created_by: actorId,
-      previous_stock,
-      new_stock,
-      difference,
-      reason,
-      notes: notes || ''
+      reason: reason + (notes ? ` - ${notes}` : '')
     });
 
     await adjustment.save({ session });
@@ -121,7 +116,10 @@ export const fetchAdjustments = async (
   skip = 0,
   limit = 0
 ) => {
-  const query = InventoryAdjustment.find({ user_id: businessOwnerId })
+  const query = StockMovement.find({ 
+    owner_id: businessOwnerId,
+    type: StockMovementType.MANUAL_ADJUSTMENT 
+  })
     .populate('product_id', 'name barcode price')
     .sort({ createdAt: -1 })
     .skip(skip);
@@ -130,13 +128,22 @@ export const fetchAdjustments = async (
 
   const adjustments = await query.lean();
   return adjustments.map(adj => {
-    if (!adj.created_by) adj.created_by = adj.user_id;
-    return adj;
+    // Para retrocompatibilidad si la UI espera user_id o difference
+    return {
+      ...adj,
+      user_id: adj.owner_id,
+      difference: Number(adj.quantity_change.toString()),
+      previous_stock: Number(adj.previous_quantity.toString()),
+      new_stock: Number(adj.new_quantity.toString())
+    };
   });
 };
 
 // ─── Contar Ajustes ───────────────────────────────────────────────────────────
 
 export const fetchAdjustmentsCount = async (businessOwnerId: BusinessOwnerId) => {
-  return InventoryAdjustment.countDocuments({ user_id: businessOwnerId });
+  return StockMovement.countDocuments({ 
+    owner_id: businessOwnerId,
+    type: StockMovementType.MANUAL_ADJUSTMENT
+  });
 };

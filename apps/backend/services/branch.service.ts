@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { Branch, IBranch } from '../models/Branch.js';
-import { BranchInventory } from '../models/BranchInventory.js';
+import { Inventory } from '../models/Inventory.js';
 import { BusinessOwnerId, BranchId } from '../types/brands.js';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ export const authorizeAndFetchBranch = async (
  * (cuyos documentos de Product ya fueron eliminados de la BD).
  */
 export const fetchBranchInventory = async (branchId: BranchId) => {
-  const inventory = await BranchInventory.find({ branch_id: branchId })
+  const inventory = await Inventory.find({ branch_id: branchId })
     .populate('product_id', 'name barcode price unit_type')
     .lean();
 

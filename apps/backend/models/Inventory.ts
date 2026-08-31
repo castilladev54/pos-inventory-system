@@ -20,11 +20,11 @@ const inventorySchema = new Schema<IInventory>(
     quantity: {
       ...DecimalConfig,
       default: mongoose.Types.Decimal128.fromString('0')
-    },
+    } as any,
     min_stock_alert: {
       ...DecimalConfig,
       default: mongoose.Types.Decimal128.fromString('0')
-    },
+    } as any,
   },
   {
     timestamps: true,

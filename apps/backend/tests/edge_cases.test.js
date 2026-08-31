@@ -7,11 +7,11 @@ import { User } from '../models/User.js';
 import { Product } from '../models/Product.js';
 import { Category } from '../models/Category.js';
 import { Branch } from '../models/Branch.js';
-import { BranchInventory } from '../models/BranchInventory.js';
+import { Inventory } from '../models/Inventory.js';
 import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import { Purchase } from '../models/Purchase.js';
-import { InventoryAdjustment } from '../models/InventoryAdjustment.js';
+import { StockMovement } from '../models/StockMovement.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
 
@@ -60,8 +60,8 @@ afterEach(async () => {
   await Sale.deleteMany({});
   await SaleDetail.deleteMany({});
   await Purchase.deleteMany({});
-  await InventoryAdjustment.deleteMany({});
-  await BranchInventory.deleteMany({});
+  await StockMovement.deleteMany({});
+  await Inventory.deleteMany({});
   await Product.deleteMany({});
   await Category.deleteMany({});
   await Branch.deleteMany({});
@@ -125,10 +125,10 @@ describe('Casos de Borde Críticos y Seguridad', () => {
   describe('Condiciones de Carrera (Concurrencia de Stock)', () => {
     it('debe prevenir stock negativo al ejecutar peticiones de venta simultáneas', async () => {
       // Stock inicial = 5
-      await BranchInventory.create({
+      await Inventory.create({ owner_id: userId, 
         product_id: productId,
         branch_id: activeBranchId,
-        stock: 5
+        quantity: 5
       });
 
       // Crear 3 peticiones concurrentes de 2 unidades cada una (total solicitado = 6, stock = 5)
@@ -140,9 +140,9 @@ describe('Casos de Borde Críticos y Seguridad', () => {
 
       // Ejecutar simultáneamente
       const requests = [
-        request(app).post('/api/sales').set(authHeaders).send(salePayload),
-        request(app).post('/api/sales').set(authHeaders).send(salePayload),
-        request(app).post('/api/sales').set(authHeaders).send(salePayload)
+        request(app).post('/api/sales').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send(salePayload),
+        request(app).post('/api/sales').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send(salePayload),
+        request(app).post('/api/sales').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send(salePayload)
       ];
 
       const responses = await Promise.all(requests);
@@ -154,14 +154,14 @@ describe('Casos de Borde Críticos y Seguridad', () => {
       expect(successCount).toBeGreaterThanOrEqual(1);
       expect(failureCount).toBeGreaterThanOrEqual(1);
 
-      // El stock final en BranchInventory debe ser exactamente (5 - successCount * 2) y >= 0
-      const branchInventory = await BranchInventory.findOne({
+      // El stock final en Inventory debe ser exactamente (5 - successCount * 2) y >= 0
+      const branchInventory = await Inventory.findOne({
         product_id: productId,
         branch_id: activeBranchId
       });
 
-      expect(branchInventory.stock).toBe(5 - successCount * 2);
-      expect(branchInventory.stock).toBeGreaterThanOrEqual(0);
+      expect(branchInventory.quantity).toBe(5 - successCount * 2);
+      expect(branchInventory.quantity).toBeGreaterThanOrEqual(0);
     });
   });
 
@@ -169,15 +169,15 @@ describe('Casos de Borde Críticos y Seguridad', () => {
   describe('Prevención de operaciones sobre Sucursales Inactivas (Soft-Delete)', () => {
     it('debe fallar al intentar registrar una VENTA en una sucursal inactiva', async () => {
       // Asignar stock en la sucursal inactiva por si acaso
-      await BranchInventory.create({
+      await Inventory.create({ owner_id: userId, 
         product_id: productId,
         branch_id: inactiveBranchId,
-        stock: 10
+        quantity: 10
       });
 
       const response = await request(app)
         .post('/api/sales')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           payment_method: 'Efectivo',
           branch_id: inactiveBranchId,
@@ -191,7 +191,7 @@ describe('Casos de Borde Críticos y Seguridad', () => {
     it('debe fallar al intentar registrar una COMPRA en una sucursal inactiva', async () => {
       const response = await request(app)
         .post('/api/purchases')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           supplier: 'Proveedor Fantasma',
           branch_id: inactiveBranchId,
@@ -205,11 +205,11 @@ describe('Casos de Borde Críticos y Seguridad', () => {
     it('debe fallar al intentar registrar un AJUSTE en una sucursal inactiva', async () => {
       const response = await request(app)
         .post('/api/adjustments')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           product_id: productId,
           branch_id: inactiveBranchId,
-          new_stock: 50,
+          new_quantity: 50,
           reason: 'correction'
         });
 
@@ -222,10 +222,10 @@ describe('Casos de Borde Críticos y Seguridad', () => {
   describe('Integridad del virtual totalStock de Productos', () => {
     it('debe calcular correctamente el stock consolidado sumando las sucursales pobladas', async () => {
       // Stock en sucursal activa = 15
-      await BranchInventory.create({
+      await Inventory.create({ owner_id: userId, 
         product_id: productId,
         branch_id: activeBranchId,
-        stock: 15
+        quantity: 15
       });
 
       // Creamos una segunda sucursal activa para este inquilino
@@ -237,10 +237,10 @@ describe('Casos de Borde Críticos y Seguridad', () => {
       });
 
       // Stock en sucursal secundaria = 25
-      await BranchInventory.create({
+      await Inventory.create({ owner_id: userId, 
         product_id: productId,
         branch_id: anotherBranch._id,
-        stock: 25
+        quantity: 25
       });
 
       // Buscar el producto con populate('branchInventories')
@@ -252,10 +252,10 @@ describe('Casos de Borde Críticos y Seguridad', () => {
 
     it('debe retornar 0 si las sucursales no están pobladas en la consulta de Mongoose', async () => {
       // Stock en sucursal activa = 15
-      await BranchInventory.create({
+      await Inventory.create({ owner_id: userId, 
         product_id: productId,
         branch_id: activeBranchId,
-        stock: 15
+        quantity: 15
       });
 
       // Buscar el producto SIN populate

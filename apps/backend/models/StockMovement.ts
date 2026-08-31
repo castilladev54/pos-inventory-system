@@ -38,9 +38,9 @@ const stockMovementSchema = new Schema<IStockMovement>(
       enum: Object.values(StockMovementType),
       required: true
     },
-    quantity_change: { ...DecimalConfig, required: true },
-    previous_quantity: { ...DecimalConfig, required: true },
-    new_quantity: { ...DecimalConfig, required: true },
+    quantity_change: { ...DecimalConfig, required: true } as any,
+    previous_quantity: { ...DecimalConfig, required: true } as any,
+    new_quantity: { ...DecimalConfig, required: true } as any,
     reference_id: { type: Schema.Types.ObjectId },
     created_by: { type: Schema.Types.ObjectId, required: true, ref: "User" },
     reason: { type: String }

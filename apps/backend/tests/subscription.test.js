@@ -76,7 +76,7 @@ describe('Subscription Verification Middleware Flow', () => {
     // 3. Acceder a una ruta protegida (p. ej. GET /api/categories)
     const response = await request(app)
       .get('/api/categories')
-      .set(authHeaders);
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
     expect(response.status).toBe(403);
     expect(response.body.success).toBe(false);
@@ -116,7 +116,7 @@ describe('Subscription Verification Middleware Flow', () => {
     // 4. Acceder a una ruta protegida
     const response = await request(app)
       .get('/api/categories')
-      .set(authHeaders);
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
     expect(response.status).toBe(403);
     expect(response.body.success).toBe(false);
@@ -156,7 +156,7 @@ describe('Subscription Verification Middleware Flow', () => {
     // 4. Acceder a una ruta protegida
     const response = await request(app)
       .get('/api/categories')
-      .set(authHeaders);
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
     // No debería retornar 403. Debería poder pasar y obtener status 200 (lista vacía de categorías)
     expect(response.status).toBe(200);

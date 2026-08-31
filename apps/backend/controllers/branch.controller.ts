@@ -213,7 +213,7 @@ export const getBranchInventory = async (req: Request, res: Response): Promise<v
  * Body: { product_id, new_stock, reason, notes? }
  *
  * IMPORTANTE: Toda modificación de stock pasa por createAdjustmentProcess,
- * que escribe en BranchInventory Y genera un registro en el Kardex (InventoryAdjustment).
+ * que escribe en Inventory Y genera un registro en el Kardex (StockMovement).
  * Ningún cambio de inventario puede evadir la auditoría.
  */
 export const upsertBranchInventory = async (req: Request, res: Response): Promise<void> => {
@@ -246,7 +246,7 @@ export const upsertBranchInventory = async (req: Request, res: Response): Promis
       return;
     }
 
-    // Delegar en el servicio transaccional — escribe en BranchInventory y genera Kardex
+    // Delegar en el servicio transaccional — escribe en Inventory y genera Kardex
     const adjustment = await createAdjustmentProcess(
       req.actorId,
       req.businessOwnerId,

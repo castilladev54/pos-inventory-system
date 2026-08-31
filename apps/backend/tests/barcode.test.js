@@ -83,7 +83,7 @@ describe('Barcode Feature — Integration Tests', () => {
     it('debe crear un producto con barcode correctamente', async () => {
       const response = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'Coca Cola 600ml',
           price: 25,
@@ -99,7 +99,7 @@ describe('Barcode Feature — Integration Tests', () => {
     it('debe crear un producto SIN barcode (campo opcional)', async () => {
       const response = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'Producto Sin Barcode',
           price: 10,
@@ -117,13 +117,13 @@ describe('Barcode Feature — Integration Tests', () => {
       // Creamos el primero
       await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Producto A', price: 10, category: categoryId, barcode: '1234567890123' });
 
       // Intentamos crear otro con el mismo barcode
       const response = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Producto B', price: 20, category: categoryId, barcode: '1234567890123' });
 
       expect(response.status).toBe(400);
@@ -140,13 +140,13 @@ describe('Barcode Feature — Integration Tests', () => {
       // Crear producto
       await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Pepsi 500ml', price: 20, category: categoryId, barcode: '7501000120285' });
 
       // Buscar por barcode
       const response = await request(app)
         .get('/api/products/barcode/7501000120285')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -159,7 +159,7 @@ describe('Barcode Feature — Integration Tests', () => {
     it('debe retornar 404 para un código de barras inexistente', async () => {
       const response = await request(app)
         .get('/api/products/barcode/0000000000000')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
@@ -188,7 +188,7 @@ describe('Barcode Feature — Integration Tests', () => {
       // El usuario original crea producto con barcode
       await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Producto Exclusivo', price: 99, category: categoryId, barcode: '9999999999999' });
 
       // El otro usuario intenta buscar ese barcode → debe ser 404
@@ -207,13 +207,13 @@ describe('Barcode Feature — Integration Tests', () => {
     it('debe asignar un barcode nuevo a un producto existente', async () => {
       const createRes = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Producto Sin Código', price: 15, category: categoryId });
       const productId = createRes.body.product._id;
 
       const response = await request(app)
         .put(`/api/products/${productId}`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ barcode: '1111111111111' });
 
       expect(response.status).toBe(200);
@@ -223,13 +223,13 @@ describe('Barcode Feature — Integration Tests', () => {
     it('debe eliminar un barcode enviando null', async () => {
       const createRes = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Producto Con Código', price: 30, category: categoryId, barcode: '2222222222222' });
       const productId = createRes.body.product._id;
 
       const response = await request(app)
         .put(`/api/products/${productId}`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ barcode: null });
 
       expect(response.status).toBe(200);
@@ -240,19 +240,19 @@ describe('Barcode Feature — Integration Tests', () => {
       // Creamos dos productos
       await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Producto X', price: 10, category: categoryId, barcode: '3333333333333' });
 
       const createResY = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Producto Y', price: 20, category: categoryId });
       const productYId = createResY.body.product._id;
 
       // Intentamos asignar el barcode de X a Y
       const response = await request(app)
         .put(`/api/products/${productYId}`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ barcode: '3333333333333' });
 
       expect(response.status).toBe(400);
@@ -269,18 +269,18 @@ describe('Barcode Feature — Integration Tests', () => {
       // Crear y eliminar
       const createRes = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Producto Temporal', price: 5, category: categoryId, barcode: '4444444444444' });
       const productId = createRes.body.product._id;
 
       await request(app)
         .delete(`/api/products/${productId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       // Crear un producto nuevo con el mismo barcode → debe funcionar
       const newResponse = await request(app)
         .post('/api/products')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Nuevo Producto', price: 10, category: categoryId, barcode: '4444444444444' });
 
       expect(newResponse.status).toBe(201);

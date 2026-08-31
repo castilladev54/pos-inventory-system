@@ -84,7 +84,7 @@ describe('Category Controllers Integration', () => {
     it('should create a new category successfully', async () => {
       const response = await request(app)
         .post('/api/categories')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
           name: 'Electronics',
           description: 'Electronic devices'
@@ -100,13 +100,13 @@ describe('Category Controllers Integration', () => {
       // Creamos la categoría inicial
       await request(app)
         .post('/api/categories')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Drinks' });
       
       // Intentamos crear otra con el mismo nombre y usuario
       const response = await request(app)
         .post('/api/categories')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'Drinks' });
 
       expect(response.status).toBe(400); 
@@ -117,7 +117,7 @@ describe('Category Controllers Integration', () => {
     it('should return validation error if required fields (name) are missing', async () => {
       const response = await request(app)
         .post('/api/categories')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ description: 'I have no name' });
 
       expect(response.status).toBe(400); // 400 Bad Request provisto por the Zod validate middleware
@@ -129,7 +129,7 @@ describe('Category Controllers Integration', () => {
     it('should return empty list if user has no categories', async () => {
       const response = await request(app)
         .get('/api/categories')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -137,12 +137,12 @@ describe('Category Controllers Integration', () => {
     });
 
     it('should return all categories for the logged in user', async () => {
-      await request(app).post('/api/categories').set(authHeaders).send({ name: 'Cat 1' });
-      await request(app).post('/api/categories').set(authHeaders).send({ name: 'Cat 2' });
+      await request(app).post('/api/categories').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({ name: 'Cat 1' });
+      await request(app).post('/api/categories').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({ name: 'Cat 2' });
 
       const response = await request(app)
         .get('/api/categories')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.categories).toHaveLength(2);
@@ -152,12 +152,12 @@ describe('Category Controllers Integration', () => {
 
   describe('GET /api/categories/:id', () => {
     it('should fetch a specific category by its ID', async () => {
-      const createRes = await request(app).post('/api/categories').set(authHeaders).send({ name: 'Search Me' });
+      const createRes = await request(app).post('/api/categories').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({ name: 'Search Me' });
       const catId = createRes.body.category._id;
 
       const response = await request(app)
         .get(`/api/categories/${catId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -168,7 +168,7 @@ describe('Category Controllers Integration', () => {
       const fakeId = new mongoose.Types.ObjectId().toString();
       const response = await request(app)
         .get(`/api/categories/${fakeId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
@@ -178,12 +178,12 @@ describe('Category Controllers Integration', () => {
 
   describe('PUT /api/categories/:id', () => {
     it('should update a category name and description successfully', async () => {
-      const createRes = await request(app).post('/api/categories').set(authHeaders).send({ name: 'Old Name' });
+      const createRes = await request(app).post('/api/categories').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({ name: 'Old Name' });
       const catId = createRes.body.category._id;
 
       const response = await request(app)
         .put(`/api/categories/${catId}`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ name: 'New Name', description: 'Updated Content' });
 
       expect(response.status).toBe(200);
@@ -195,12 +195,12 @@ describe('Category Controllers Integration', () => {
 
   describe('DELETE /api/categories/:id', () => {
     it('should delete a category with no associated products successfully', async () => {
-      const createRes = await request(app).post('/api/categories').set(authHeaders).send({ name: 'Delete Me' });
+      const createRes = await request(app).post('/api/categories').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({ name: 'Delete Me' });
       const catId = createRes.body.category._id;
 
       const response = await request(app)
         .delete(`/api/categories/${catId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -209,7 +209,7 @@ describe('Category Controllers Integration', () => {
 
     it('should return 400 if trying to delete a category that has associated products', async () => {
       // 1. Crear categoría
-      const createRes = await request(app).post('/api/categories').set(authHeaders).send({ name: 'In Use Category' });
+      const createRes = await request(app).post('/api/categories').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({ name: 'In Use Category' });
       const catId = createRes.body.category._id;
 
       // 2. Insertar directamente en la BD un producto que apunte a esa categoría
@@ -225,7 +225,7 @@ describe('Category Controllers Integration', () => {
       // 3. Intentar eliminar la categoría (Debería fallar según la regla en controller)
       const response = await request(app)
         .delete(`/api/categories/${catId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -236,7 +236,7 @@ describe('Category Controllers Integration', () => {
       const fakeId = new mongoose.Types.ObjectId().toString();
       const response = await request(app)
         .delete(`/api/categories/${fakeId}`)
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);

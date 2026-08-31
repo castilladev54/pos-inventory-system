@@ -128,8 +128,9 @@ export const createSaleProcess = async (
         );
       }
 
+      if (!result) throw new Error('Error al actualizar inventario en la venta');
       // Registrar movimiento de stock (event sourcing)
-      await StockMovement.create({
+      await StockMovement.create([{
         inventory_id: result._id,
         product_id: item.product_id,
         branch_id: branchId,
@@ -140,7 +141,7 @@ export const createSaleProcess = async (
         new_quantity: result.quantity,
         reference_id: undefined, // se enlazará a la venta después de crearla
         created_by: soldBy
-      }, { session });
+      }], { session });
     }
 
     // Crear el documento de Venta (shift_id proviene del middleware de turno activo)
@@ -332,8 +333,9 @@ export const updateSaleProcess = async (
           );
         }
 
+        if (!result) throw new Error('Error al actualizar inventario en la edición de venta');
         // Registrar movimiento de stock (event sourcing)
-        await StockMovement.create({
+        await StockMovement.create([{
           inventory_id: result._id,
           product_id: item.product_id,
           branch_id: effectiveBranchId,
@@ -344,7 +346,7 @@ export const updateSaleProcess = async (
           new_quantity: result.quantity,
           reference_id: undefined,
           created_by: ownerId
-        }, { session });
+        }], { session });
       }
 
       // 4. Reemplazar SaleDetail
@@ -359,7 +361,7 @@ export const updateSaleProcess = async (
         await detail.save({ session });
       }
 
-      sale.total_amount = newTotal;
+      sale.total_amount = newTotal as any;
     }
 
     if (payment_method !== undefined) {
@@ -423,7 +425,7 @@ export const cancelSaleProcess = async (
     }
 
     sale.status = 'cancelled';
-    sale.total_amount = 0;
+    sale.total_amount = '0' as any;
     await sale.save({ session });
 
     await session.commitTransaction();

@@ -9,7 +9,7 @@ import { Product } from '../models/Product.js';
 import { Purchase } from '../models/Purchase.js';
 import { PurchaseDetail } from '../models/PurchaseDetail.js';
 import { Branch } from '../models/Branch.ts';
-import { BranchInventory } from '../models/BranchInventory.ts';
+import { Inventory } from '../models/Inventory.ts';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
 
@@ -59,7 +59,7 @@ afterAll(async () => {
 afterEach(async () => {
   await Purchase.deleteMany({});
   await PurchaseDetail.deleteMany({});
-  await BranchInventory.deleteMany({});
+  await Inventory.deleteMany({});
   await User.updateMany({}, { av_inventory_cost: 0 });
   
   vi.clearAllMocks();
@@ -113,11 +113,11 @@ describe('Purchase Controllers Integration', () => {
     productId = product._id.toString();
 
     // Inyectar el stock inicial en la sucursal de prueba
-    await BranchInventory.create({
+    await Inventory.create({ owner_id: userId, 
       product_id: product._id,
       branch_id: branchId,
-      stock: 0,
-      min_stock: 0
+      quantity: 0,
+      min_quantity: 0
     });
   });
 
@@ -138,7 +138,7 @@ describe('Purchase Controllers Integration', () => {
 
       const response = await request(app)
         .post('/api/purchases')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send(payload);
 
       expect(response.status).toBe(201);
@@ -155,8 +155,8 @@ describe('Purchase Controllers Integration', () => {
       expect(details[0].quantity).toBe(15.5);
 
       // 2. STOCK DE SUCURSAL INCREMENTADO:
-      const branchInv = await BranchInventory.findOne({ product_id: productId, branch_id: branchId });
-      expect(branchInv.stock).toBe(15.5);
+      const branchInv = await Inventory.findOne({ product_id: productId, branch_id: branchId });
+      expect(branchInv.quantity).toBe(15.5);
 
       // El pre-save de PurchaseDetail tambiÃ©n debiÃ³ actualizar el "av_inventory_cost" en User.
       const updatedUser = await User.findById(userId);
@@ -174,7 +174,7 @@ describe('Purchase Controllers Integration', () => {
 
       const response = await request(app)
         .post('/api/purchases')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send(payload);
 
       expect(response.status).toBe(404);
@@ -188,7 +188,7 @@ describe('Purchase Controllers Integration', () => {
     it('should return 400 validation error if required body payload missing (e.g. items array)', async () => {
       const response = await request(app)
         .post('/api/purchases')
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ admin_id: userId, branch_id: branchId, supplier: 'No items supplier, will crash' });
 
       // Bad Request from Zod Validator
@@ -199,14 +199,14 @@ describe('Purchase Controllers Integration', () => {
   describe('GET /api/purchases', () => {
     it('should return a list of purchases belonging to the logged user', async () => {
       // Creamos una de forma limpia
-      await request(app).post('/api/purchases').set(authHeaders).send({
+      await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Test Supplier 123',
         items: [{ product_id: productId, quantity: 2, unit_cost: 50 }]
       });
 
-      const response = await request(app).get('/api/purchases').set(authHeaders);
+      const response = await request(app).get('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.purchases).toHaveLength(1);
@@ -217,7 +217,7 @@ describe('Purchase Controllers Integration', () => {
 
   describe('GET /api/purchases/:id', () => {
     it('should retrieve a single purchase and its mapped purchase details', async () => {
-      const createRes = await request(app).post('/api/purchases').set(authHeaders).send({
+      const createRes = await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Single Detail Prov',
@@ -225,7 +225,7 @@ describe('Purchase Controllers Integration', () => {
       });
       const purchaseId = createRes.body.purchase._id;
 
-      const response = await request(app).get(`/api/purchases/${purchaseId}`).set(authHeaders);
+      const response = await request(app).get(`/api/purchases/${purchaseId}`).set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.purchase._id).toBe(purchaseId);
@@ -238,7 +238,7 @@ describe('Purchase Controllers Integration', () => {
 
     it('should return 404 for a non-existent purchase search', async () => {
       const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app).get(`/api/purchases/${fakeId}`).set(authHeaders);
+      const response = await request(app).get(`/api/purchases/${fakeId}`).set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
@@ -250,7 +250,7 @@ describe('Purchase Controllers Integration', () => {
     it('should assign a default due_date of 30 days when none is provided', async () => {
       const beforeCreate = new Date();
 
-      const response = await request(app).post('/api/purchases').set(authHeaders).send({
+      const response = await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Default Due Supplier',
@@ -273,7 +273,7 @@ describe('Purchase Controllers Integration', () => {
     it('should use a custom dueDate when provided in the request body', async () => {
       const customDate = '2026-06-15T00:00:00.000Z';
 
-      const response = await request(app).post('/api/purchases').set(authHeaders).send({
+      const response = await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Custom Due Supplier',
@@ -291,7 +291,7 @@ describe('Purchase Controllers Integration', () => {
   describe('GET /api/purchases (Filtros por Estado y Vencimiento)', () => {
     it('should filter purchases by status=PENDING', async () => {
       // Crear una compra (status por defecto: PENDING)
-      await request(app).post('/api/purchases').set(authHeaders).send({
+      await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Pending Supplier',
@@ -300,7 +300,7 @@ describe('Purchase Controllers Integration', () => {
 
       const response = await request(app)
         .get('/api/purchases?status=PENDING')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.purchases.length).toBeGreaterThanOrEqual(1);
@@ -311,7 +311,7 @@ describe('Purchase Controllers Integration', () => {
 
     it('should filter purchases by status=PAID (returns empty if none paid)', async () => {
       // Crear una compra (status PENDING por defecto)
-      await request(app).post('/api/purchases').set(authHeaders).send({
+      await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Unpaid Supplier',
@@ -320,7 +320,7 @@ describe('Purchase Controllers Integration', () => {
 
       const response = await request(app)
         .get('/api/purchases?status=PAID')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.purchases).toHaveLength(0);
@@ -343,7 +343,7 @@ describe('Purchase Controllers Integration', () => {
 
       const response = await request(app)
         .get('/api/purchases?filterBy=overdue')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.purchases.length).toBeGreaterThanOrEqual(1);
@@ -373,7 +373,7 @@ describe('Purchase Controllers Integration', () => {
 
       const response = await request(app)
         .get('/api/purchases?filterBy=expiringSoon')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       expect(response.status).toBe(200);
       expect(response.body.purchases.length).toBeGreaterThanOrEqual(1);
@@ -412,7 +412,7 @@ describe('Purchase Controllers Integration', () => {
 
       const overdueRes = await request(app)
         .get('/api/purchases?filterBy=overdue')
-        .set(authHeaders);
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
       // La compra pagada NO debe aparecer en overdue
       const overdueSuppliers = overdueRes.body.purchases.map(p => p.supplier);
@@ -423,7 +423,7 @@ describe('Purchase Controllers Integration', () => {
   describe('PUT /api/purchases/:id/pay (Abonos y Pagos)', () => {
     it('should register a PARTIAL payment and update status to PARTIAL', async () => {
       // Crear compra de $1000
-      const createRes = await request(app).post('/api/purchases').set(authHeaders).send({
+      const createRes = await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Partial Pay Supplier',
@@ -434,7 +434,7 @@ describe('Purchase Controllers Integration', () => {
       // Abonar $400 de $1000
       const payRes = await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 400 });
 
       expect(payRes.status).toBe(200);
@@ -446,7 +446,7 @@ describe('Purchase Controllers Integration', () => {
 
     it('should mark purchase as PAID when full amount is covered', async () => {
       // Crear compra de $500
-      const createRes = await request(app).post('/api/purchases').set(authHeaders).send({
+      const createRes = await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Full Pay Supplier',
@@ -457,7 +457,7 @@ describe('Purchase Controllers Integration', () => {
       // Pagar los $500 completos
       const payRes = await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 500 });
 
       expect(payRes.status).toBe(200);
@@ -468,7 +468,7 @@ describe('Purchase Controllers Integration', () => {
 
     it('should accumulate multiple partial payments until PAID', async () => {
       // Crear compra de $300
-      const createRes = await request(app).post('/api/purchases').set(authHeaders).send({
+      const createRes = await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Multi Pay Supplier',
@@ -479,7 +479,7 @@ describe('Purchase Controllers Integration', () => {
       // Primer abono: $100
       const pay1 = await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 100 });
       expect(pay1.body.purchase.status).toBe('PARTIAL');
       expect(pay1.body.purchase.paid_amount).toBe(100);
@@ -487,7 +487,7 @@ describe('Purchase Controllers Integration', () => {
       // Segundo abono: $100 â†’ total $200
       const pay2 = await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 100 });
       expect(pay2.body.purchase.status).toBe('PARTIAL');
       expect(pay2.body.purchase.paid_amount).toBe(200);
@@ -495,7 +495,7 @@ describe('Purchase Controllers Integration', () => {
       // Tercer abono: $100 â†’ total $300 = PAGADO
       const pay3 = await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 100 });
       expect(pay3.body.purchase.status).toBe('PAID');
       expect(pay3.body.purchase.paid_amount).toBe(300);
@@ -504,7 +504,7 @@ describe('Purchase Controllers Integration', () => {
 
     it('should cap paid_amount to total_cost if overpaying', async () => {
       // Crear compra de $200
-      const createRes = await request(app).post('/api/purchases').set(authHeaders).send({
+      const createRes = await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Overpay Supplier',
@@ -515,7 +515,7 @@ describe('Purchase Controllers Integration', () => {
       // Pagar $999 (mÃ¡s del total de $200)
       const payRes = await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 999 });
 
       expect(payRes.status).toBe(200);
@@ -525,7 +525,7 @@ describe('Purchase Controllers Integration', () => {
 
     it('should return 400 when trying to pay an already PAID purchase', async () => {
       // Crear y pagar completamente
-      const createRes = await request(app).post('/api/purchases').set(authHeaders).send({
+      const createRes = await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Double Pay Supplier',
@@ -536,13 +536,13 @@ describe('Purchase Controllers Integration', () => {
       // Pagar todo
       await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 50 });
 
       // Intentar pagar de nuevo â†’ ERROR
       const payAgain = await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 10 });
 
       expect(payAgain.status).toBe(400);
@@ -550,7 +550,7 @@ describe('Purchase Controllers Integration', () => {
     });
 
     it('should return 400 if amount is zero or negative', async () => {
-      const createRes = await request(app).post('/api/purchases').set(authHeaders).send({
+      const createRes = await request(app).post('/api/purchases').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send({
         admin_id: userId,
         branch_id: branchId,
         supplier: 'Zero Pay Supplier',
@@ -560,13 +560,13 @@ describe('Purchase Controllers Integration', () => {
 
       const zeroRes = await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 0 });
       expect(zeroRes.status).toBe(400);
 
       const negativeRes = await request(app)
         .put(`/api/purchases/${purchaseId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: -50 });
       expect(negativeRes.status).toBe(400);
     });
@@ -575,7 +575,7 @@ describe('Purchase Controllers Integration', () => {
       const fakeId = new mongoose.Types.ObjectId().toString();
       const response = await request(app)
         .put(`/api/purchases/${fakeId}/pay`)
-        .set(authHeaders)
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 100 });
 
       expect(response.status).toBe(404);

@@ -6,10 +6,10 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { User } from '../models/User.js';
 import { Product } from '../models/Product.js';
 import { Category } from '../models/Category.js';
-import { InventoryAdjustment } from '../models/InventoryAdjustment.js';
+import { StockMovement } from '../models/StockMovement.js';
 import { Sale } from '../models/Sale.js';
 import { Branch } from '../models/Branch.js';
-import { BranchInventory } from '../models/BranchInventory.js';
+import { Inventory } from '../models/Inventory.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
 
@@ -86,17 +86,17 @@ describe('Flujo Cruzado: Multi-Inquilino y Auditoría (Fase 3)', () => {
     branchId = branch._id.toString();
 
     // Stock inicial para el producto en la sucursal
-    await BranchInventory.create({ product_id: productId, branch_id: branchId, stock: 10 });
+    await Inventory.create({ owner_id: ownerId,  product_id: productId, branch_id: branchId, quantity: 10 });
   });
 
   afterAll(async () => {
     await User.deleteMany({ _id: { $in: [ownerId, employeeId] } });
     await Category.deleteMany({ _id: categoryId });
     await Product.deleteMany({ _id: productId });
-    await InventoryAdjustment.deleteMany({ user_id: ownerId });
+    await StockMovement.deleteMany({ user_id: ownerId });
     await Sale.deleteMany({ customer_id: ownerId });
     await Branch.deleteMany({ _id: branchId });
-    await BranchInventory.deleteMany({ branch_id: branchId });
+    await Inventory.deleteMany({ branch_id: branchId });
 
     await mongoose.disconnect();
     if (mongoReplSet) {
@@ -111,18 +111,18 @@ describe('Flujo Cruzado: Multi-Inquilino y Auditoría (Fase 3)', () => {
       .send({
         product_id: productId,
         branch_id: branchId,
-        new_stock: 15,
+        new_quantity: 15,
         reason: 'correction'
       });
 
     expect(res.status).toBe(201);
     
     // Verificar en BD
-    const adj = await InventoryAdjustment.findById(res.body.adjustment._id).lean();
+    const adj = await StockMovement.findById(res.body.adjustment._id).lean();
     expect(adj).not.toBeNull();
     expect(adj.user_id.toString()).toBe(ownerId);
     expect(adj.created_by.toString()).toBe(employeeId);
-    expect(adj.new_stock).toBe(15);
+    expect(adj.new_quantity).toBe(15);
   });
 
   it('Empleado registra venta → sold_by === empleadoId, customer_id === dueñoId', async () => {
