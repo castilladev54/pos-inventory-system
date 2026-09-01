@@ -93,25 +93,18 @@ export const updateProductBodySchema = z
     name: z.string().min(1, 'Name is required').optional(),
     description: z.string().optional(),
     barcode: z.string().min(1, 'Barcode cannot be empty').nullable().optional(),
-    price: numericString.optional(),
-    stock: numericString.optional(),
+    price: z.coerce.number().positive('El precio debe ser mayor a 0').optional(),
+
     unit_type: z.enum(['unidad', 'kg', 'litro', 'metro'] as const).optional(),
     category: z.string().regex(OBJECT_ID_REGEX, 'Invalid Category ID format').optional(),
-    new_stock: numericString.optional(),
+
     max_debt_limit: numericString.optional(),
     stock_reason: z
       .enum(['initial_count', 'damaged', 'stolen', 'expired', 'correction', 'other'] as const)
       .optional(),
-    branch_id: z.string().regex(OBJECT_ID_REGEX, 'Invalid Branch ID format').optional(),
+
   })
-  .refine(
-    (body) => {
-      const hasStock = body.new_stock !== undefined;
-      const hasReason = body.stock_reason !== undefined;
-      return hasStock === hasReason;
-    },
-    { message: 'Si envías new_stock, debes enviar stock_reason también (y viceversa)' }
-  );
+
 export type UpdateProductDTO = z.infer<typeof updateProductBodySchema>;
 
 // ─── VENTAS ─────────────────────────────────────────────────────────────────
