@@ -4,10 +4,12 @@ import { purchaseHeaderSchema } from '@inventory/shared/validations';
 
 export const requireBranchHeader = (req: Request, _res: Response, next: NextFunction): void => {
   const headerValue = req.headers['x-branch-id'];
+
+  // ❌ NADA DE RETURN NEXT() AQUÍ. SI NO ESTÁ, SE RECHAZA.
   if (!headerValue) {
-    // No branch header provided; allow request to proceed (global request)
-    return next();
+    return next(new AppError(400, 'ACCESO DENEGADO: Falta el contexto físico (x-branch-id).'));
   }
+
   const result = purchaseHeaderSchema.safeParse({
     'x-branch-id': headerValue
   });
