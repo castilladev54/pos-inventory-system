@@ -3,6 +3,7 @@ import Big from 'big.js';
 import { Branch } from '../models/Branch.js';
 import { Inventory } from '../models/Inventory.js';
 import { StockMovement, StockMovementType } from '../models/StockMovement.js';
+import { AppError } from '../lib/error.js';
 
 interface TransferItem {
   product_id: string;
@@ -33,16 +34,16 @@ export const transferStockBetweenBranches = async ({
     // 1. Validar que las sucursales existan y pertenezcan al mismo tenant
     const sourceBranch = await Branch.findOne({ _id: sourceBranchId, owner_id: businessOwnerId }).session(session).lean();
     if (!sourceBranch) {
-      throw new Error(`Sucursal de origen no encontrada o no pertenece a su tenant.`);
+      throw new AppError(404, `Sucursal de origen no encontrada o no pertenece a su tenant.`);
     }
 
     const destBranch = await Branch.findOne({ _id: destinationBranchId, owner_id: businessOwnerId }).session(session).lean();
     if (!destBranch) {
-      throw new Error(`Sucursal de destino no encontrada o no pertenece a su tenant.`);
+      throw new AppError(404, `Sucursal de destino no encontrada o no pertenece a su tenant.`);
     }
 
     if (sourceBranchId === destinationBranchId) {
-      throw new Error(`La sucursal de origen y destino no pueden ser la misma.`);
+      throw new AppError(400, `La sucursal de origen y destino no pueden ser la misma.`);
     }
 
     // 2. Procesar cada item atómicamente
@@ -50,22 +51,34 @@ export const transferStockBetweenBranches = async ({
       const { product_id, quantity } = item;
 
       if (Big(quantity).lte(0)) {
-        throw new Error(`La cantidad a transferir debe ser mayor a 0.`);
+        throw new AppError(400, `La cantidad a transferir debe ser mayor a 0.`);
       }
 
-      // Restar stock de la sucursal de origen
-      const sourceInventory = await Inventory.findOne({
-        branch_id: sourceBranchId,
-        product_id: product_id
-      }).session(session);
+      const decimalQuantity = mongoose.Types.Decimal128.fromString(quantity);
+      const decimalNegativeQuantity = mongoose.Types.Decimal128.fromString("-" + quantity);
 
-      if (!sourceInventory || Big(sourceInventory.quantity as any).lt(Big(quantity))) {
-        throw new Error(`Stock insuficiente en sucursal de origen para realizar la transferencia.`);
+      // Restar stock de la sucursal de origen atómicamente
+      const sourceInventory = await Inventory.findOneAndUpdate(
+        {
+          branch_id: sourceBranchId,
+          product_id: product_id,
+          quantity: { $gte: decimalQuantity }
+        },
+        {
+          $inc: { quantity: decimalNegativeQuantity }
+        },
+        {
+          new: false,
+          session
+        }
+      );
+
+      if (!sourceInventory) {
+        throw new AppError(400, `Stock insuficiente o producto no encontrado en sucursal de origen para realizar la transferencia.`);
       }
 
       const previousSourceQuantity = sourceInventory.quantity.toString();
-      sourceInventory.quantity = Big(sourceInventory.quantity as any).minus(Big(quantity)).toString() as any;
-      await sourceInventory.save({ session });
+      const newSourceQuantity = Big(previousSourceQuantity).minus(quantity).toString();
 
       // Registrar Kardex de salida
       await StockMovement.create([{
@@ -76,48 +89,67 @@ export const transferStockBetweenBranches = async ({
         type: StockMovementType.TRANSFER_OUT,
         quantity_change: Big(quantity).times(-1).toString(),
         previous_quantity: previousSourceQuantity,
-        new_quantity: sourceInventory.quantity.toString(),
+        new_quantity: newSourceQuantity,
         created_by: actorId,
         reason: notes || `Transferencia hacia sucursal ${destBranch.name}`
       }], { session });
 
-      // Sumar stock en la sucursal de destino
-      let destInventory = await Inventory.findOne({
-        branch_id: destinationBranchId,
-        product_id: product_id
-      }).session(session);
-
-      let previousDestQuantity = '0';
-      if (!destInventory) {
-        // Crear el inventario si no existe en la sucursal de destino
-        const newDestInventoryArray = await Inventory.create([{
-          owner_id: businessOwnerId,
+      // Sumar stock en la sucursal de destino atómicamente
+      const destResultRaw = await Inventory.findOneAndUpdate(
+        {
           branch_id: destinationBranchId,
-          product_id: product_id,
-          quantity: quantity,
-          min_stock_alert: '0'
-        }], { session });
-        destInventory = newDestInventoryArray[0] ?? null;
-      } else {
-        previousDestQuantity = destInventory.quantity.toString();
-        destInventory.quantity = Big(destInventory.quantity as any).plus(Big(quantity)).toString() as any;
-        await destInventory.save({ session });
+          product_id: product_id
+        },
+        {
+          $inc: { quantity: decimalQuantity },
+          $setOnInsert: {
+            owner_id: businessOwnerId,
+            min_stock_alert: '0'
+          }
+        },
+        {
+          upsert: true,
+          new: false,
+          session,
+          rawResult: true
+        }
+      );
+
+      // Bypass estricto de TS para el objeto nativo ModifyResult de MongoDB
+      const destResult = destResultRaw as unknown as {
+        value: { _id: mongoose.Types.ObjectId; quantity: mongoose.Types.Decimal128 } | null;
+        lastErrorObject?: { upserted?: mongoose.Types.ObjectId };
+      };
+
+      if (!destResult) {
+        throw new AppError(500, 'Fallo crítico en la comunicación con la base de datos durante el upsert.');
       }
 
-      if (!destInventory) {
-        throw new Error('Error crítico: no se pudo crear ni encontrar el inventario de destino.');
+      let destInventoryId;
+      let previousDestQuantity = "0";
+
+      if (destResult.value) {
+        destInventoryId = destResult.value._id;
+        previousDestQuantity = destResult.value.quantity.toString();
+      } else {
+        destInventoryId = destResult.lastErrorObject?.upserted;
+        if (!destInventoryId) {
+          throw new AppError(500, 'Fallo crítico recuperando ID del nuevo inventario destino.');
+        }
       }
+
+      const newDestQuantity = Big(previousDestQuantity).plus(quantity).toString();
 
       // Registrar Kardex de entrada
       await StockMovement.create([{
-        inventory_id: destInventory._id,
+        inventory_id: destInventoryId,
         product_id: product_id,
         branch_id: destinationBranchId,
         owner_id: businessOwnerId,
         type: StockMovementType.TRANSFER_IN,
         quantity_change: quantity,
         previous_quantity: previousDestQuantity,
-        new_quantity: destInventory.quantity.toString(),
+        new_quantity: newDestQuantity,
         created_by: actorId,
         reason: notes || `Transferencia desde sucursal ${sourceBranch.name}`
       }], { session });
@@ -130,6 +162,6 @@ export const transferStockBetweenBranches = async ({
     await session.abortTransaction();
     throw error;
   } finally {
-    session.endSession();
+    await session.endSession();
   }
 };
