@@ -1,18 +1,14 @@
 import mongoose from 'mongoose';
 import Big from 'big.js';
 import { Inventory } from '../models/Inventory.js';
-import { Product } from '../models/Product.js';
 import { StockMovement, StockMovementType } from '../models/StockMovement.js';
 import { AppError } from '../lib/error.js';
 import { CreateAdjustmentDTO } from '../validations/adjustment.validation.js';
-import { BusinessOwnerId } from '../types/brands.js';
-import { bumpCacheVersion, invalidateCache, bumpBranchCacheVersion } from '../lib/redis.js';
 
 interface AdjustmentParams extends CreateAdjustmentDTO {
   actorId: string;
   ownerId: string;
   targetBranchId: string;
-  idempotencyKey?: string;
 }
 
 export const executeAdjustment = async ({
@@ -22,18 +18,12 @@ export const executeAdjustment = async ({
   reason,
   notes,
   actorId,
-  ownerId,
-  idempotencyKey
+  ownerId
 }: AdjustmentParams) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const productExists = await Product.exists({ _id: product_id, user: ownerId }).session(session);
-    if (!productExists) {
-      throw new AppError(404, 'El producto especificado no existe en el catálogo de este negocio.');
-    }
-
     const stringQty = quantity.toString();
     const decimalQuantity = mongoose.Types.Decimal128.fromString(stringQty);
 
@@ -84,27 +74,18 @@ export const executeAdjustment = async ({
           product_id: product_id,
           branch_id: targetBranchId,
           owner_id: ownerId,
-          type: StockMovementType.MANUAL_ADJUSTMENT,
+          type: StockMovementType.ADJUSTMENT,
           quantity_change: stringQty,
           previous_quantity: previousQuantity,
           new_quantity: newQuantity,
           created_by: actorId,
-          reason: `AJUSTE [${reason}]: ${notes || 'Sin especificación'}`,
-          ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {})
+          reason: `AJUSTE [${reason}]: ${notes || 'Sin especificación'}`
         }
       ],
       { session }
     );
 
     await session.commitTransaction();
-
-    // Cache Invalidation after successful commit
-    await Promise.all([
-      bumpBranchCacheVersion('products', String(ownerId), String(targetBranchId)),
-      bumpCacheVersion('adjustments', ownerId),
-      invalidateCache(`product:${product_id}:${ownerId}`)
-    ]);
-
     return {
       success: true,
       previous_quantity: previousQuantity,
@@ -116,42 +97,4 @@ export const executeAdjustment = async ({
   } finally {
     await session.endSession();
   }
-};
-
-// ─── Listar Ajustes ───────────────────────────────────────────────────────────
-
-export const fetchAdjustments = async (
-  businessOwnerId: BusinessOwnerId | string,
-  skip = 0,
-  limit = 0
-) => {
-  const query = StockMovement.find({ 
-    owner_id: businessOwnerId,
-    type: StockMovementType.MANUAL_ADJUSTMENT
-  })
-    .populate('product_id', 'name barcode price')
-    .sort({ createdAt: -1 })
-    .skip(skip);
-
-  if (limit > 0) query.limit(limit);
-
-  const adjustments = await query.lean();
-  return adjustments.map(adj => {
-    return {
-      ...adj,
-      user_id: adj.owner_id,
-      difference: Number(adj.quantity_change.toString()),
-      previous_stock: Number(adj.previous_quantity.toString()),
-      new_stock: Number(adj.new_quantity.toString())
-    };
-  });
-};
-
-// ─── Contar Ajustes ───────────────────────────────────────────────────────────
-
-export const fetchAdjustmentsCount = async (businessOwnerId: BusinessOwnerId | string) => {
-  return StockMovement.countDocuments({ 
-    owner_id: businessOwnerId,
-    type: StockMovementType.MANUAL_ADJUSTMENT
-  });
 };

@@ -23,6 +23,7 @@ export interface IStockMovement extends Document {
   reference_id?: Types.ObjectId; // ID de Sale, Purchase o Transfer
   created_by: Types.ObjectId;
   reason?: string;
+  idempotency_key?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,7 +44,8 @@ const stockMovementSchema = new Schema<IStockMovement>(
     new_quantity: { ...DecimalConfig, required: true } as any,
     reference_id: { type: Schema.Types.ObjectId },
     created_by: { type: Schema.Types.ObjectId, required: true, ref: "User" },
-    reason: { type: String }
+    reason: { type: String },
+    idempotency_key: { type: String, sparse: true, unique: true }
   },
   {
     timestamps: true,

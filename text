@@ -1,0 +1,45 @@
+Perfecto, mucho más directo. Aquí tienes todo para Postman:
+
+POST /api/adjustments
+Headers:
+
+Key	Value
+Authorization	Bearer <tu_token_JWT>
+Content-Type	application/json
+x-branch-id	<ObjectId de tu sucursal>
+Idempotency-Key	adj-001-inicial (opcional, para probar idempotencia)
+Body (JSON) — Carga inicial de stock:
+
+json
+{
+  "product_id": "<ObjectId de un producto existente>",
+  "quantity": 50,
+  "reason": "INITIAL_INVENTORY",
+  "notes": "Conteo de caja inicial"
+}
+Body (JSON) — Resta por daño:
+
+json
+{
+  "product_id": "<ObjectId de un producto existente>",
+  "quantity": -3,
+  "reason": "DAMAGE",
+  "notes": "3 unidades rotas en traslado"
+}
+Reasons válidos del enum: INITIAL_INVENTORY | CORRECTION | LOSS | DAMAGE | EXPIRED
+
+GET /api/adjustments?page=1&limit=20
+Headers:
+
+Key	Value
+Authorization	Bearer <tu_token_JWT>
+x-branch-id	<ObjectId de tu sucursal>
+Pruebas a ejecutar en secuencia:
+Carga inicial → esperas 201 con previous_quantity: "0" y new_quantity: "50"
+Repetir la misma con el mismo Idempotency-Key → esperas 409 Conflict
+Enviar un product_id falso (ObjectId válido pero inexistente) → esperas 404
+Enviar quantity: 0 → esperas 400
+GET → esperas ver el historial con el ajuste creado en paso 1
+Esto te va a revelar inmediatamente si el servicio funciona o qué error exacto devuelve el 500. Cuando veas la respuesta del Postman, pégamela y la arreglamos al instante.
+
+7:47 AM

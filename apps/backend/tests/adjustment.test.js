@@ -18,26 +18,15 @@ vi.mock('../mailtrap/emails.js', () => ({
   sendResetSuccessEmail: vi.fn(),
 }));
 
-// Mock Redis COMPLETO: cubre tanto lib/redis.js (getOrSetCache/invalidateCache)
-// como el cache.middleware.js que llama redis.get() y redis.set() directamente.
-vi.mock('../lib/redis.js', () => ({
-  redis: {
-    get: vi.fn(async () => null),
-    set: vi.fn(async () => 'OK'),
-    del: vi.fn(async () => 1),
-    incr: vi.fn(async () => 1),
-  },
-  getOrSetCache:    vi.fn(async (_key, fn) => ({ data: await fn(), fromCache: false })),
-  invalidateCache:  vi.fn(async () => {}),
-  bumpCacheVersion: vi.fn(async () => {}),
-  getCacheVersion:  vi.fn(async () => 0),
-  buildPaginatedKey: vi.fn((_p, _v, _pg, _l, uid) => `mock:${uid}`),
-}));
+// Redis ya está mockeado globalmente en tests/setup.js
 
 let mongoReplSet;
 
 beforeAll(async () => {
-  mongoReplSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+  mongoReplSet = await MongoMemoryReplSet.create({
+    replSet: { count: 1 },
+    instanceOpts: [{ launchTimeout: 60000 }]
+  });
   const mongoUri = mongoReplSet.getUri();
 
   if (mongoose.connection.readyState !== 0) {
@@ -93,7 +82,7 @@ describe('Inventory Adjustment Feature', () => {
   });
 
   describe('POST /api/adjustments', () => {
-    it('debe crear un ajuste y actualizar el stock del producto a la nueva cantidad', async () => {
+    it('debe crear un ajuste y sumar stock incremental (carga inicial)', async () => {
       // 1. Crear producto (sin stock inicial — ahora vive en Inventory)
       const product = await Product.create({
         name: 'Agua Min',
@@ -103,28 +92,34 @@ describe('Inventory Adjustment Feature', () => {
         user: userId
       });
 
-      // 2. Ejecutar ajuste (el servicio hace upsert en Inventory, previous_quantity = 0)
+      // 2. Ejecutar ajuste incremental: quantity = +50 (delta desde 0)
       const response = await request(app)
         .post('/api/adjustments')
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
-          product_id: product._id,
+          product_id: product._id.toString(),
           branch_id: branchId,
-          new_quantity: 50,
-          reason: 'initial_count',
+          quantity: 50,
+          reason: 'INITIAL_INVENTORY',
           notes: 'Conteo de caja inicial'
         });
 
+      // DEBUG: ver qué error devuelve el servidor
+      if (response.status !== 201) {
+        console.error('DEBUG RESPONSE:', response.status, JSON.stringify(response.body, null, 2));
+      }
+
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
-      expect(Number(response.body.adjustment.quantity_change)).toBe(50);
+      expect(Number(response.body.data.new_quantity)).toBe(50);
+      expect(Number(response.body.data.previous_quantity)).toBe(0);
 
       // Verificar que el stock se refleje en Inventory
       const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
       expect(Number(branchInv.quantity.toString())).toBe(50);
     });
 
-    it('debe fallar si no hay diferencia de stock (new_quantity igual a previous_quantity)', async () => {
+    it('debe rechazar un ajuste con quantity = 0 (Zod validation)', async () => {
       const product = await Product.create({
         name: 'Gorra',
         price: 100,
@@ -133,25 +128,20 @@ describe('Inventory Adjustment Feature', () => {
         user: userId
       });
 
-      // Pre-cargar Inventory con quantity = 12
-      await Inventory.create({ owner_id: userId,  product_id: product._id, branch_id: branchId, owner_id: userId, quantity: 12 });
-
       const response = await request(app)
         .post('/api/adjustments')
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
-          product_id: product._id,
+          product_id: product._id.toString(),
           branch_id: branchId,
-          new_quantity: 12, // Mismo stock
-          reason: 'correction'
+          quantity: 0,
+          reason: 'CORRECTION'
         });
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain('igual al stock actual');
     });
 
-    it('debe registrar restas de stock correctamente', async () => {
-      // This test intentionally uses reason='broken' which may fail Zod validation — it is a negative test
+    it('debe rechazar un reason inválido (Zod enum validation)', async () => {
       const product = await Product.create({
         name: 'Vaso',
         price: 5,
@@ -160,22 +150,20 @@ describe('Inventory Adjustment Feature', () => {
         user: userId
       });
 
-      await Inventory.create({ owner_id: userId,  product_id: product._id, branch_id: branchId, owner_id: userId, quantity: 10 });
-
       const response = await request(app)
         .post('/api/adjustments')
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
-          product_id: product._id,
+          product_id: product._id.toString(),
           branch_id: branchId,
-          new_quantity: 7,
+          quantity: -3,
           reason: 'broken' // Reason inválido — Zod lo rechazará con 400
         });
-      // Si Zod rechaza 'broken', esperar 400; si no, el ajuste se aplica
-      expect([200, 201, 400]).toContain(response.status);
+
+      expect(response.status).toBe(400);
     });
 
-    it('debe registrar restas de stock correctamente (damaged)', async () => {
+    it('debe registrar restas de stock correctamente (DAMAGE)', async () => {
       const product = await Product.create({
         name: 'Vaso Dañado',
         price: 5,
@@ -185,25 +173,85 @@ describe('Inventory Adjustment Feature', () => {
       });
 
       // Stock inicial en Inventory = 10
-      await Inventory.create({ owner_id: userId,  product_id: product._id, branch_id: branchId, owner_id: userId, quantity: 10 });
+      await Inventory.create({
+        product_id: product._id,
+        branch_id: branchId,
+        owner_id: userId,
+        quantity: 10
+      });
+
+      // Ajuste incremental: quantity = -3 (resta 3 unidades)
+      const response = await request(app)
+        .post('/api/adjustments')
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .send({
+          product_id: product._id.toString(),
+          branch_id: branchId,
+          quantity: -3,
+          reason: 'DAMAGE'
+        });
+
+      expect(response.status).toBe(201);
+      expect(Number(response.body.data.previous_quantity)).toBe(10);
+      expect(Number(response.body.data.new_quantity)).toBe(7);
+
+      // Verificar stock actualizado en Inventory
+      const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
+      expect(Number(branchInv.quantity.toString())).toBe(7);
+    });
+
+    it('debe rechazar un product_id que no existe en el catálogo (integridad referencial)', async () => {
+      const fakeProductId = new mongoose.Types.ObjectId().toString();
 
       const response = await request(app)
         .post('/api/adjustments')
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
-          product_id: product._id,
+          product_id: fakeProductId,
           branch_id: branchId,
-          new_quantity: 7,
-          reason: 'damaged'
+          quantity: 10,
+          reason: 'INITIAL_INVENTORY'
         });
 
-      expect(response.status).toBe(201);
-      expect(Number(response.body.adjustment.quantity_change)).toBe(-3);
-      expect(Number(response.body.adjustment.previous_quantity)).toBe(10);
+      expect(response.status).toBe(404);
+    });
 
-      // Verificar stock actualizado en Inventory
+    it('debe prevenir ajustes duplicados con Idempotency-Key (409 Conflict)', async () => {
+      const product = await Product.create({
+        name: 'Producto Idempotente',
+        price: 20,
+        unit_type: 'unidad',
+        category: categoryId,
+        user: userId
+      });
+
+      const idempotencyKey = `test-idem-${Date.now()}`;
+      const payload = {
+        product_id: product._id.toString(),
+        branch_id: branchId,
+        quantity: 5,
+        reason: 'INITIAL_INVENTORY'
+      };
+
+      // Primera petición → 201
+      const first = await request(app)
+        .post('/api/adjustments')
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'idempotency-key': idempotencyKey })
+        .send(payload);
+
+      expect(first.status).toBe(201);
+
+      // Segunda petición con la misma key → 409
+      const second = await request(app)
+        .post('/api/adjustments')
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'idempotency-key': idempotencyKey })
+        .send(payload);
+
+      expect(second.status).toBe(409);
+
+      // Verificar que el stock solo se incrementó una vez
       const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
-      expect(Number(branchInv.quantity.toString())).toBe(7);
+      expect(Number(branchInv.quantity.toString())).toBe(5);
     });
   });
 
@@ -221,10 +269,10 @@ describe('Inventory Adjustment Feature', () => {
         .post('/api/adjustments')
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({
-          product_id: product._id,
+          product_id: product._id.toString(),
           branch_id: branchId,
-          new_quantity: 100,
-          reason: 'initial_count'
+          quantity: 100,
+          reason: 'INITIAL_INVENTORY'
         });
 
       const response = await request(app)
@@ -233,7 +281,7 @@ describe('Inventory Adjustment Feature', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.adjustments).toHaveLength(1);
-      expect(response.body.adjustments[0].reason).toContain('initial_count');
+      expect(response.body.adjustments[0].reason).toContain('INITIAL_INVENTORY');
       expect(response.body.adjustments[0].product_id.name).toBe('Prueba Get');
     });
   });

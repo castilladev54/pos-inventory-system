@@ -55,6 +55,11 @@ vi.mock('../lib/redis.js', () => {
       const current = parseInt(store.get(`v:${prefix}:${userId}`) || '0', 10);
       store.set(`v:${prefix}:${userId}`, String(current + 1));
     },
+    bumpBranchCacheVersion: async (prefix, ownerId, branchId) => {
+      const key = `v:${prefix}:${ownerId}:${branchId}`;
+      const current = parseInt(store.get(key) || '0', 10);
+      store.set(key, String(current + 1));
+    },
     buildPaginatedKey: (prefix, version, page, limit, userId) => {
       return `${prefix}:v${version}:p${page}:l${limit}:${userId}`;
     }
