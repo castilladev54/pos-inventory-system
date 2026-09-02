@@ -11,6 +11,7 @@ import AnalyticsManager from '../components/AnalyticsManager';
 import AdminUserCreator from '../components/AdminUserCreator';
 import StaffManager from '../components/StaffManager';
 import StockTransferManager from '../components/inventory/StockTransferManager';
+import AdjustmentManager from '../components/inventory/AdjustmentManager';
 import PermissionGuard from '../components/PermissionGuard';
 import { RequireBranchGuard } from '../components/guards/RequireBranchGuard';
 import { AiChatWindow } from '../components/organisms/AiChatWindow';
@@ -64,6 +65,13 @@ const DashboardPage = () => {
           <PermissionGuard requiredPermission="inventory_access" fallback={<AccessDenied />}>
             <RequireBranchGuard>
               <StockTransferManager />
+            </RequireBranchGuard>
+          </PermissionGuard>
+        )}
+        {activeTab === 'adjustments' && (
+          <PermissionGuard requiredPermission="inventory_access" fallback={<AccessDenied />}>
+            <RequireBranchGuard>
+              <AdjustmentManager />
             </RequireBranchGuard>
           </PermissionGuard>
         )}

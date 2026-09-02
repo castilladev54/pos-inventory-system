@@ -12,6 +12,7 @@ export type DashboardTab =
   | 'analytics'
   | 'staff'
   | 'transfers'
+  | 'adjustments'
   | 'settings'
   | 'plans'
   | 'branches'

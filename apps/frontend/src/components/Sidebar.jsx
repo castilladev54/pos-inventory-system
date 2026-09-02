@@ -147,6 +147,14 @@ const Sidebar = ({ isOpen, setIsOpen, activeTab, setActiveTab }) => {
                         Transferencias
                       </button>
                     </li>
+                    <li>
+                      <button
+                        onClick={() => setActiveTab("adjustments")}
+                        className={`w-full text-left block py-2 px-3 rounded-lg hover:bg-white/10 text-sm transition-colors ${activeTab === 'adjustments' ? 'bg-white/10 text-orange-400 font-medium' : ''}`}
+                      >
+                        Ajustes
+                      </button>
+                    </li>
                   </PermissionGuard>
                   <PermissionGuard requiredPermission="pos_access">
                     <li>
