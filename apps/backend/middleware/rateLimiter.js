@@ -23,7 +23,7 @@ export const globalLimiter = rateLimit({
 /** Rate limiter estricto para rutas de autenticación — 10 peticiones por ventana de 15 min */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 50,
   skip: () => process.env.NODE_ENV === 'test',
   standardHeaders: true,
   legacyHeaders: false,
