@@ -1,4 +1,5 @@
 import { useEffect, useRef, RefObject } from 'react';
+import { useSaleUIStore } from '../store/saleUIStore';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -13,6 +14,7 @@ interface UsePOSKeyboardOptions {
 
   setShowHelp: (fn: (prev: boolean) => boolean) => void;
   setIsFormOpen: (open: boolean) => void;
+  // setViewedSale is retained for compatibility but will be ignored; global store handles modal closure
   setViewedSale: (sale: null) => void;
   setIsScannerOpen: (open: boolean) => void;
   setIsCartOpen: (open: boolean) => void;
@@ -25,6 +27,9 @@ interface UsePOSKeyboardOptions {
   modifyLastItemQty: (delta: number) => void;
   handleBarcodeScan: (barcode: string) => void;
   cancelForm: () => void;
+
+  // Global UI store actions for sale detail handling
+  closeModals?: () => void;
 }
 
 // ─── Constantes del Escáner Físico ───────────────────────────────────────────
@@ -60,27 +65,32 @@ const MIN_BARCODE_LENGTH = 5;
  *    El listener se registra y elimina en el mismo ciclo de vida del efecto,
  *    evitando listener leaks al desmontar el componente POS.
  */
-export function usePOSKeyboard({
-  isFormOpen,
-  viewedSale,
-  showHelp,
-  isScannerOpen,
-  isCartOpen,
-  items,
-  hasOpenShift,
-  setShowHelp,
-  setIsFormOpen,
-  setViewedSale,
-  setIsScannerOpen,
-  setIsCartOpen,
-  searchInputRef,
-  submitBtnRef,
-  cyclePaymentMethod,
-  clearCart,
-  modifyLastItemQty,
-  handleBarcodeScan,
-  cancelForm,
-}: UsePOSKeyboardOptions) {
+export function usePOSKeyboard(options: UsePOSKeyboardOptions) {
+  const {
+    isFormOpen,
+    viewedSale,
+    showHelp,
+    isScannerOpen,
+    isCartOpen,
+    items,
+    hasOpenShift,
+    setShowHelp,
+    setIsFormOpen,
+    setViewedSale,
+    setIsScannerOpen,
+    setIsCartOpen,
+    searchInputRef,
+    submitBtnRef,
+    cyclePaymentMethod,
+    clearCart,
+    modifyLastItemQty,
+    handleBarcodeScan,
+    cancelForm,
+    closeModals,
+  } = options;
+
+  // Ensure closeModals is available from global store if not provided
+  const effectiveCloseModals = closeModals || useSaleUIStore.getState().closeModals;
 
   /**
    * Usamos refs para el buffer del escáner para que no queden stale closures
@@ -187,11 +197,31 @@ export function usePOSKeyboard({
 
         case 'Escape':
           e.preventDefault();
-          if (showHelp)      { setShowHelp(() => false); return; }
-          if (isScannerOpen) { setIsScannerOpen(false);  return; }
-          if (viewedSale)    { setViewedSale(null);       return; }
-          if (isCartOpen)    { setIsCartOpen(false);      return; }
-          if (isFormOpen)    { cancelForm();              return; }
+          if (showHelp) {
+            setShowHelp(() => false);
+            return;
+          }
+          if (isScannerOpen) {
+            setIsScannerOpen(false);
+            return;
+          }
+          // Close any sale detail/edit modals via global UI store
+          if (isFormOpen) {
+            cancelForm();
+            return;
+          }
+          // Fallback: close cart if open
+          if (isCartOpen) {
+            setIsCartOpen(false);
+            return;
+          }
+          // If a sale detail is open, close it through store
+          if (viewedSale) {
+            // Use global store to close modals
+            const { closeModals } = useSaleUIStore.getState();
+            closeModals();
+            return;
+          }
           return;
 
         default:

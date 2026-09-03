@@ -15,7 +15,7 @@ export interface DataTableColumn<T> {
 }
 
 interface DataTableProps<T> {
-  columns: DataTableColumn<T>[];
+  columns: (DataTableColumn<T> | any)[];
   data: T[];
   isLoading?: boolean;
   onEdit?: (row: T) => void;
@@ -69,15 +69,19 @@ const DataTable = <T extends Record<string, any>>({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-white/5 bg-black/20 text-gray-400 text-xs sm:text-sm uppercase tracking-wider">
-                  {columns.map((col) => (
-                    <th
-                      key={col.key}
-                      scope="col"
-                      className={`px-4 py-3 sm:px-6 sm:py-4 font-medium ${col.headerClassName ?? ''}`}
-                    >
-                      {col.label}
-                    </th>
-                  ))}
+                  {columns.map((col: any, colIdx) => {
+                    const colKey = col.key || col.accessorKey || col.id || `col-${colIdx}`;
+                    const colLabel = col.label || (typeof col.header === 'string' ? col.header : col.header);
+                    return (
+                      <th
+                        key={colKey}
+                        scope="col"
+                        className={`px-4 py-3 sm:px-6 sm:py-4 font-medium ${col.headerClassName ?? ''}`}
+                      >
+                        {colLabel}
+                      </th>
+                    );
+                  })}
                   {hasActions && (
                     <th scope="col" className="px-4 py-3 sm:px-6 sm:py-4 font-medium text-right">
                       Acciones
@@ -95,16 +99,22 @@ const DataTable = <T extends Record<string, any>>({
                     transition={{ delay: rowIndex * 0.04 }}
                     className="hover:bg-white/5 transition-colors group"
                   >
-                    {columns.map((col) => (
-                      <td
-                        key={col.key}
-                        className={`px-4 py-3 sm:px-6 sm:py-4 text-gray-300 text-sm ${col.className ?? ''}`}
-                      >
-                        {col.render
-                          ? col.render(row[col.key], row)
-                          : (row[col.key] ?? '')}
-                      </td>
-                    ))}
+                    {columns.map((col: any, colIdx) => {
+                      const colKey = col.key || col.accessorKey || col.id || `col-${colIdx}`;
+                      const valKey = col.accessorKey || col.key || col.id;
+                      return (
+                        <td
+                          key={colKey}
+                          className={`px-4 py-3 sm:px-6 sm:py-4 text-gray-300 text-sm ${col.className ?? ''}`}
+                        >
+                          {col.render
+                            ? col.render(row[valKey], row)
+                            : col.cell
+                              ? col.cell({ row: { original: row }, getValue: () => row[valKey] })
+                              : (row[valKey] ?? '')}
+                        </td>
+                      );
+                    })}
 
                     {hasActions && (
                       <td className="px-4 py-3 sm:px-6 sm:py-4 text-right">
