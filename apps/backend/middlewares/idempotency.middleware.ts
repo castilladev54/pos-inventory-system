@@ -12,7 +12,7 @@ const IDEMPOTENCY_TTL_SECONDS = 86400; // 24 horas
 export const checkIdempotency = async (req: Request | any, res: Response, next: NextFunction) => {
   try {
     const key = req.headers['x-idempotency-key'];
-    
+
     // Si no hay llave, dejamos pasar (útil si decidimos que la idempotencia es opt-in para ciertos clientes).
     // Para hacerlo estricto, podríamos retornar un 400 Bad Request aquí.
     if (!key) {
@@ -43,9 +43,9 @@ export const checkIdempotency = async (req: Request | any, res: Response, next: 
 
     if (existingState === "PROCESSING") {
       getCurrentLogger().warn({ redisKey }, "Intento concurrente bloqueado por idempotencia");
-      return res.status(409).json({ 
-        success: false, 
-        message: 'La transacción está siendo procesada actualmente. Por favor, espere.' 
+      return res.status(409).json({
+        success: false,
+        message: 'La transacción está siendo procesada actualmente. Por favor, espere.'
       });
     }
 
@@ -82,7 +82,7 @@ export const withIdempotency = (controllerFn: any) => {
         // Enviar la respuesta
         return res.status(201).json(responsePayload);
       }
-      
+
       // Si el controlador decidió enviar la respuesta por sí mismo o no hay llave, 
       // esto asume que el controlador ya se encargó. (Menos ideal, pero flexible).
       // En un patrón puramente declarativo, el controlador SOLO debe retornar el JSON,
@@ -91,7 +91,7 @@ export const withIdempotency = (controllerFn: any) => {
     } catch (error) {
       // Si hubo error, liberamos la llave de idempotencia para permitir reintentos limpios
       if (req.idempotencyKey) {
-        await redis.del(req.idempotencyKey).catch(err => getCurrentLogger().error({err}, "Error borrando lock idempotente"));
+        await redis.del(req.idempotencyKey).catch(err => getCurrentLogger().error({ err }, "Error borrando lock idempotente"));
       }
       next(error);
     }

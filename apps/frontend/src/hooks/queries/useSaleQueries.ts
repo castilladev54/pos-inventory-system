@@ -29,7 +29,7 @@ export const saleKeys = {
 
 export interface SaleItemPayload {
   product_id: ProductId;
-  quantity: string | number;
+  quantity: string;
   unit_price: string;
 }
 
@@ -109,18 +109,33 @@ export function useCreateSale() {
   const qc = useQueryClient();
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<Sale, Error, CreateSalePayload>({
-    mutationFn: async ({ signal, idempotencyKey, ...payload }) => {
-      const headers: Record<string, string> = {};
-      if (idempotencyKey) {
-        headers['x-idempotency-key'] = idempotencyKey;
-      }
+mutationFn: async ({ signal, idempotencyKey, ...payload }) => {
+  const headers: Record<string, string> = {};
+  if (idempotencyKey) {
+    headers['x-idempotency-key'] = idempotencyKey;
+  }
+  if (activeBranchId) {
+    headers['x-branch-id'] = activeBranchId;
+  }
 
-      const res = await API.post('/sales', payload, { 
-        signal,
-        headers
-      });
-      return (res.data.sale ?? res.data) as Sale;
-    },
+  // Sanitize payload: ensure quantity and unit_price are strings
+  const sanitizedPayload = {
+    ...payload,
+    items: payload.items.map((item) => ({
+      ...item,
+      quantity: String(item.quantity),
+      unit_price: String(item.unit_price),
+    })),
+  };
+
+  const res = await API.post('/sales', sanitizedPayload, {
+    signal,
+    headers,
+  });
+  return (res.data.sale ?? res.data) as Sale;
+},
+
+
     onSuccess: () => {
       // Una venta descuenta stock → invalida productos + ventas + analytics
       qc.invalidateQueries({ queryKey: saleKeys.all(activeBranchId) });
