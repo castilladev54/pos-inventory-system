@@ -13,10 +13,13 @@ import EditSaleModal from './EditSaleModal';
 
 export default function TodaySales() {
   const { data: rateData } = useExchangeRateQuery();
-  const exchangeRate = Number(rateData?.rate ?? 1);
+  const exchangeRate = rateData?.rate ? String(rateData.rate) : "1";
   const { user } = useAuthStore();
   const {
     viewedSale,
+    viewedSaleId,
+    isLoading: isDetailLoading,
+    isError: isDetailError,
     isEditModalOpen,
     openSaleDetail,
     openEditMode,
@@ -39,7 +42,30 @@ export default function TodaySales() {
 
   const initial = user?.name?.charAt(0).toUpperCase() || 'E';
 
-  if (viewedSale) {
+  if (viewedSaleId) {
+    if (isDetailLoading) {
+      return (
+        <div className="flex justify-center items-center h-64 bg-[#1a1a24] rounded-2xl border border-white/10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+          <span className="ml-3 text-gray-400">Cargando detalle de venta...</span>
+        </div>
+      );
+    }
+    
+    if (isDetailError || !viewedSale) {
+      return (
+        <div className="flex flex-col justify-center items-center h-64 bg-[#1a1a24] rounded-2xl border border-white/10 text-center">
+          <p className="text-red-400 mb-4">No se pudo cargar la información de la venta.</p>
+          <button
+            onClick={() => closeModals()}
+            className="px-4 py-2 border border-white/20 rounded-lg text-white hover:bg-white/5 transition"
+          >
+            Volver a Ventas
+          </button>
+        </div>
+      );
+    }
+
     return (
       <>
         <SaleDetailView
@@ -97,7 +123,7 @@ export default function TodaySales() {
       </div>
 
       <DataTable
-        columns={buildHistoryColumns(handleViewDetail, toBs, exchangeRate)}
+        columns={buildHistoryColumns(handleViewDetail, exchangeRate)}
         data={sales}
         isLoading={isSalesLoading}
         emptyMessage={sales.length === 0 ? "Aún no hay ventas" : "Sin ventas en este período"}

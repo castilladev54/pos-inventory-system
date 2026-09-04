@@ -4,24 +4,27 @@
  * Sin dependencias de React — son funciones puras, fáciles de testear.
  */
 
-/** Formatea un valor numérico como precio en dólares. */
-export const fmtUSD = (v) => `$${Number(v || 0).toFixed(2)}`;
-
+import Big from 'big.js';
+import type { CartItem } from '../store/cartStore';
 import { toBs } from './currency';
 
-/** Formatea un valor numérico como precio en bolívares usando la tasa del día. */
-export const fmtBs = (v: number | string, rate: number | string) => `Bs ${toBs(String(v || 0), String(rate))}`;
+/** Formatea un valor numérico como precio en dólares. */
+export const fmtUSD = (v: string | number): string =>
+  `$${Number(v || 0).toFixed(2)}`;
 
-import Big from 'big.js';
+/** Formatea un valor numérico como precio en bolívares usando la tasa del día. */
+export const fmtBs = (v: number | string, rate: number | string): string =>
+  `Bs ${toBs(String(v || 0), String(rate))}`;
 
 /** Calcula el subtotal de un ítem del carrito (cantidad × precio unitario). */
-export const itemSubtotal = (item) => {
+export const itemSubtotal = (item: CartItem): string => {
   try {
-    const qty = new Big(item.quantity || "0");
-    const price = new Big(item.unit_price || "0");
-    return qty.times(price).toNumber();
+    const qty = new Big(item.quantity || '0');
+    const price = new Big(item.unit_price || '0');
+
+    return qty.times(price).toString();
   } catch {
-    return 0;
+    return '0';
   }
 };
 
@@ -33,7 +36,9 @@ export const itemSubtotal = (item) => {
  * @param {string|Date|undefined} expirationDate
  * @returns {{ status: "expired"|"warning"|"ok", days: number, label: string, color: string }|null}
  */
-export const getExpirationInfo = (expirationDate) => {
+export const getExpirationInfo = (
+  expirationDate: string | Date | null | undefined
+) => {
   if (!expirationDate) return null;
 
   const now = new Date();

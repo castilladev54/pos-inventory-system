@@ -60,6 +60,8 @@ export function useSaleDetailActions() {
   return {
     viewedSale,
     viewedSaleId,
+    isLoading,
+    isError,
     isEditModalOpen,
     openSaleDetail,
     openEditMode,

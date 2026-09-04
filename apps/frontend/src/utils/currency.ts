@@ -80,9 +80,9 @@ export const MoneyMath = {
 
 // ── Utilidades de Moneda (usan MoneyMath internamente) ──────────────
 
-export const toBs = (amount: string | number | null | undefined, rate: string | number | null | undefined): string => {
-  const safeAmount = amount != null && amount !== "" && String(amount) !== "NaN" ? String(amount) : "0";
-  const safeRate = rate != null && rate !== "" && String(rate) !== "NaN" ? String(rate) : "0";
+export const toBs = (amount: string, rate: string): string => {
+  const safeAmount = amount || "0";
+  const safeRate = rate || "0";
 
   try {
     return MoneyMath.formatToDisplay(MoneyMath.mul(safeAmount, safeRate), 2);
@@ -91,8 +91,8 @@ export const toBs = (amount: string | number | null | undefined, rate: string | 
   }
 };
 
-export const formatDual = (amount: string | number | null | undefined, rate: string | number | null | undefined): string => {
-  const safeAmount = amount != null && amount !== "" && String(amount) !== "NaN" ? String(amount) : "0";
+export const formatDual = (amount: string, rate: string): string => {
+  const safeAmount = amount || "0";
   const bs = toBs(safeAmount, rate);
   try {
     return `$${MoneyMath.formatToDisplay(safeAmount, 2)} / Bs ${bs}`;

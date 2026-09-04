@@ -17,13 +17,15 @@ import { useAuthStore } from '../../store/authStore';
 
 export default function GlobalSalesHistory() {
   const { data: rateData } = useExchangeRateQuery();
-  const exchangeRate = Number(rateData?.rate ?? 1);
+  const exchangeRate = rateData?.rate ? String(rateData.rate) : "1";
   const { staff } = useStaffStore();
   const { user } = useAuthStore();
   
   const {
     viewedSale,
     viewedSaleId,
+    isLoading: isDetailLoading,
+    isError: isDetailError,
     isEditModalOpen,
     openSaleDetail,
     openEditMode,
@@ -63,7 +65,25 @@ export default function GlobalSalesHistory() {
   const initial = seller ? seller?.name?.charAt(0).toUpperCase() : 'Σ';
   const sellerName = seller ? seller.name : 'Todas las ventas';
 
-  if (viewedSale) {
+  if (viewedSaleId) {
+    if (isDetailLoading) {
+      return (
+        <div className="flex justify-center items-center h-64 bg-[#1a1a24] rounded-2xl border border-white/10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+          <span className="ml-3 text-gray-400">Cargando detalle de venta...</span>
+        </div>
+      );
+    }
+    
+    if (isDetailError || !viewedSale) {
+      return (
+        <div className="flex flex-col justify-center items-center h-64 bg-[#1a1a24] rounded-2xl border border-white/10 text-center">
+          <p className="text-red-400 mb-4">No se pudo cargar la información de la venta.</p>
+          <Button variant="outline" onClick={() => closeModals()}>Volver a Ventas</Button>
+        </div>
+      );
+    }
+
     return (
       <>
         <SaleDetailView
@@ -358,7 +378,7 @@ export default function GlobalSalesHistory() {
       </div>
 
       <DataTable
-        columns={buildHistoryColumns(handleViewDetail, toBs, exchangeRate)}
+        columns={buildHistoryColumns(handleViewDetail, exchangeRate)}
         data={sales}
         isLoading={isSalesLoading}
         emptyMessage={sales.length === 0 ? "Aún no hay ventas" : "Sin ventas en este período"}
