@@ -1,10 +1,11 @@
 import { useSaleUIStore } from '../store/saleUIStore';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
 import { useCancelSale, saleKeys } from './queries/useSaleQueries';
 import API from '../api/axios';
-import type { SaleId, SaleDetailDTO } from '@inventory/shared';
+import type { SaleId } from '@inventory/shared';
+import type { SaleDetailDTO } from '../types/saleDTO';
 
 export function useSaleDetailActions() {
   const queryClient = useQueryClient();
@@ -12,31 +13,23 @@ export function useSaleDetailActions() {
   const { activeBranchId } = useAuthStore();
   const {
     viewedSaleId,
-    viewedSale,
     isEditModalOpen,
     openSaleDetail,
     openEditMode,
     closeModals,
   } = useSaleUIStore();
 
+  const { data: viewedSale, isLoading, isError } = useQuery<SaleDetailDTO>({
+    queryKey: [...saleKeys.all(activeBranchId), "detail", viewedSaleId],
+    queryFn: async () => {
+      const res = await API.get(`/sales/${viewedSaleId}`);
+      return res.data.sale ?? res.data;
+    },
+    enabled: !!viewedSaleId,
+  });
+
   const handleViewDetail = async (id: SaleId) => {
-    try {
-      const sale = await queryClient.fetchQuery<SaleDetailDTO>({
-        queryKey: [...saleKeys.all(activeBranchId), "detail", id],
-        queryFn: async () => {
-          const res = await API.get(`/sales/${id}`);
-          return res.data.sale ?? res.data;
-        },
-      });
-      // Update store with fetched sale
-      useSaleUIStore.setState({ viewedSale: sale });
-      // Optionally set active ID
-      openSaleDetail(id);
-      // Return for callers that may need it
-      return sale;
-    } catch {
-      toast.error("No se pudo cargar el detalle de la venta");
-    }
+    openSaleDetail(id);
   };
 
   const handleCancelSale = async (id: SaleId) => {
@@ -58,8 +51,9 @@ export function useSaleDetailActions() {
   };
 
   const handleUpdateSale = (updatedSale: SaleDetailDTO) => {
-    // Update store with new sale data and close edit mode
-    useSaleUIStore.setState({ viewedSale: updatedSale, isEditModalOpen: false });
+    // La reactividad de React Query actualizará automáticamente 'viewedSale' si configuramos el onMutate correctamente, o podemos forzar invalidación.
+    // Solo cerramos el modal de edición
+    useSaleUIStore.setState({ isEditModalOpen: false });
     toast.success("Venta actualizada con éxito");
   };
 

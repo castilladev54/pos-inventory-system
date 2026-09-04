@@ -1,11 +1,16 @@
-import { createColumnHelper } from '@tanstack/react-table';
+import { createColumnHelper, ColumnDef } from '@tanstack/react-table';
 import type { Sale } from '@inventory/shared';
 import { fmtUSD, fmtBs } from '../../utils/salesFormatters';
 import { useSaleUIStore } from '../../store/saleUIStore';
 import Badge from '../atoms/Badge';
 import { Eye } from 'lucide-react';
 
-const columnHelper = createColumnHelper<Sale>();
+export interface PopulatedSale extends Omit<Sale, 'sold_by' | 'branch_id'> {
+  sold_by: { _id: string; name: string } | null;
+  branch_id: { _id: string; name: string } | null;
+}
+
+const columnHelper = createColumnHelper<PopulatedSale>();
 
 /**
  * Build column definitions for the sales history table.
@@ -15,7 +20,7 @@ export const buildHistoryColumns = (
   handleViewDetail: (id: string) => void,
   toBs: (val: string, rate: number) => string,
   rate: number,
-) => {
+): ColumnDef<PopulatedSale, any>[] => {
   return [
     columnHelper.accessor('createdAt', {
       header: 'Fecha',
@@ -32,8 +37,20 @@ export const buildHistoryColumns = (
         );
       },
     }),
-    columnHelper.accessor((row: any) => row.sold_by?.name || 'N/A', { id: 'seller', header: 'Vendedor' }),
-    columnHelper.accessor((row: any) => row.branch_id?.name || 'N/A', { id: 'branch', header: 'Sucursal' }),
+    columnHelper.accessor('sold_by', {
+      header: 'Vendedor',
+      cell: (info) => {
+        const user = info.getValue() as any;
+        return user?.name ? user.name : '—';
+      },
+    }),
+    columnHelper.accessor('branch_id', {
+      header: 'Sucursal',
+      cell: (info) => {
+        const branch = info.getValue() as any;
+        return branch?.name ? branch.name : '—';
+      },
+    }),
     columnHelper.accessor('payment_method', { header: 'Método Pago' }),
     columnHelper.accessor('status', {
       header: 'Estado',
@@ -49,7 +66,7 @@ export const buildHistoryColumns = (
       header: 'Total',
       cell: (info) => {
         const amount = info.getValue() as string; // strict string inference
-        const row = info.row.original;
+        const row = info.row.original as any;
         const bs = toBs(amount, Number(row.exchange_rate ?? rate));
         return (
           <div>

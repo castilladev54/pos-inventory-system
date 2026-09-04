@@ -274,6 +274,7 @@ export const getSales = async (req: Request, res: Response): Promise<any> => {
         Sale.find(filter)
           .populate('customer_id', 'name email')
           .populate('sold_by', 'name email')
+          .populate('branch_id', 'name')
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)
