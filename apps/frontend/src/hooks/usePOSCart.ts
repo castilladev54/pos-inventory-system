@@ -1,16 +1,18 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import toast from "react-hot-toast";
 import Big from "big.js";
+import type { Product, ProductId, UnitType } from "@inventory/shared";
 
 const PAYMENT_METHODS = ["Efectivo", "Divisas", "Tarjeta", "Pago Movil", "Transferencia", "Zelle"];
 
 export interface POSCartItem {
-  product_id: string;
+  product_id: ProductId;
   name: string;
   quantity: string;
   unit_price: string;
   maxStock: string;
-  unit_type?: string;
+  unit_type?: UnitType;
+  discount?: string;
 }
 
 export function usePOSCart() {
@@ -19,7 +21,7 @@ export function usePOSCart() {
   const [cartPulse, setCartPulse] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
 
-  const handleAddItem = useCallback((product: any, quantity: string | number = "1") => {
+  const handleAddItem = useCallback((product: Product, quantity: string | number = "1", getBranchStock?: (p: Product) => string) => {
     idempotencyKeyRef.current = null;
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.product_id === product._id);
@@ -31,7 +33,7 @@ export function usePOSCart() {
       }
       return [...prev, {
         product_id: product._id, name: product.name, quantity: qtyToAdd.toString(),
-        unit_price: String(product.price), maxStock: String(product.totalStock || product.stock || "0"),
+        unit_price: String(product.price), maxStock: getBranchStock ? getBranchStock(product) : String(product.totalStock || "0"),
         unit_type: product.unit_type || "unidad",
       }];
     });

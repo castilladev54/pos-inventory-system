@@ -7,19 +7,12 @@ import InputText from '../atoms/InputText';
 import KBD from '../atoms/KBD';
 import type { FormEvent, RefObject } from 'react';
 
-export interface CartItem {
-  product_id: string;
-  name: string;
-  unit_price: string;
-  quantity: string;
-  unit_type?: string;
-  maxStock?: string;
-}
+import type { POSCartItem } from '../../hooks/usePOSCart';
 
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  items: CartItem[];
+  items: POSCartItem[];
   onQtyChange: (index: number, val: string) => void;
   onRemove: (index: number) => void;
   onSubmit: (e: FormEvent) => void;

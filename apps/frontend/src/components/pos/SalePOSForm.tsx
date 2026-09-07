@@ -4,15 +4,17 @@ import { fmtUSD } from "../../utils/salesFormatters";
 import Button from "../atoms/Button";
 import KBD from "../atoms/KBD";
 import ProductCard from "./ProductCard";
-import CartDrawer, { CartItem } from "./CartDrawer";
+import type { Product } from "@inventory/shared";
+import CartDrawer from "./CartDrawer";
+import type { POSCartItem } from "../../hooks/usePOSCart";
 import ProductSearchBar from "../molecules/ProductSearchBar";
 import type { FormEvent, RefObject } from "react";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 interface SalePOSFormProps {
-  items: CartItem[];
+  items: POSCartItem[];
   onCancel: () => void;
-  onAddItem: (product: any, qty?: number) => void;
+  onAddItem: (product: Product, qty?: string | number) => void;
   onRemoveItem: (index: number) => void;
   onQtyChange: (index: number, val: string) => void;
   onSubmit: (e: FormEvent) => void;
@@ -20,7 +22,7 @@ interface SalePOSFormProps {
   onPaymentChange: (val: string) => void;
   isLoading: boolean;
   currentTotal: number;
-  filteredProducts: any[];
+  filteredProducts: Product[];
   searchTerm: string;
   onSearch: (val: string) => void;
   onOpenScanner: () => void;
@@ -33,6 +35,7 @@ interface SalePOSFormProps {
   hasOpenShift: boolean; // 🚨 GUARDRAIL de Turno de Caja
   onOpenCashShift: () => void; // Acción para abrir caja
   exchangeRate: string;
+  getBranchStock: (product: Product) => string;
 }
 
 /**
@@ -64,6 +67,7 @@ const SalePOSForm = ({
   hasOpenShift,
   onOpenCashShift,
   exchangeRate,
+  getBranchStock,
 }: SalePOSFormProps) => {
   return (
     <motion.div
@@ -185,13 +189,14 @@ const SalePOSForm = ({
         {/* Grid de productos */}
         <div className="flex-1 overflow-y-auto w-full max-w-6xl mx-auto pb-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {filteredProducts.map((product: any) => {
+            {filteredProducts.map((product: Product) => {
               const cartItem = items.find((i) => i.product_id === product._id);
               const qty = cartItem?.quantity ?? 0;
               return (
                 <ProductCard
                   key={product._id}
                   product={product}
+                  stock={getBranchStock(product)}
                   cartQty={typeof qty === 'string' ? parseFloat(qty) || 0 : qty}
                   onAdd={onAddItem}
                   exchangeRate={exchangeRate}

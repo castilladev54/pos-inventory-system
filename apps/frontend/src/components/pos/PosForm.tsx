@@ -1,7 +1,7 @@
 import React, { FormEvent, useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import { useCreateSale } from '../../hooks/queries/useSaleQueries';
 import { usePOSCart } from '../../hooks/usePOSCart';
-import { useProductStore } from '../../store/productStore';
+import { useAllProductsForPOS } from '../../hooks/queries/useProductQueries';
 import { useAuthStore } from '../../store/authStore';
 import { useExchangeRateQuery } from '../../hooks/queries/useExchangeRateQueries';
 import { useCurrentCashShiftQuery } from '../../hooks/queries/useCashShiftQueries';
@@ -10,6 +10,7 @@ import SalePOSForm from './SalePOSForm';
 import POSGuardOverlay from './POSGuardOverlay';
 import toast from 'react-hot-toast';
 import { PaymentMethod } from '@inventory/shared';
+import type { Product } from '@inventory/shared';
 
 interface PosFormProps {
   onCancel: () => void;
@@ -31,7 +32,7 @@ export default function PosForm({
   isCartOpenExternal,
 }: PosFormProps) {
   const createSaleMutation = useCreateSale();
-  const { posProducts, isPosLoading, fetchAllForPOS, fetchProductByBarcode } = useProductStore();
+  const { data: posProducts = [], isLoading: isPosLoading } = useAllProductsForPOS();
   const { user, activeBranchId } = useAuthStore();
   
   const { data: rateData } = useExchangeRateQuery();
@@ -61,9 +62,9 @@ export default function PosForm({
   const paymentSelectRef = useRef<HTMLSelectElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    if (isFormOpen) fetchAllForPOS();
-  }, [isFormOpen, fetchAllForPOS]);
+  // useEffect removed – React Query handles loading
+  //   if (isFormOpen) fetchAllForPOS();
+  // }, [isFormOpen, fetchAllForPOS]);
 
   useEffect(() => {
     if (!isScannerOpen && isFormOpen) {
@@ -85,7 +86,6 @@ export default function PosForm({
 
   usePOSKeyboard({
     isFormOpen,
-    viewedSale: null,
     showHelp: false,
     isScannerOpen,
     isCartOpen: isCartOpenExternal,
@@ -102,26 +102,23 @@ export default function PosForm({
     modifyLastItemQty,
     handleBarcodeScan: async (code: string) => {
       const qty = 1;
-      const local = posProducts.find((p: any) => p.barcode === code || p._id === code);
+      const local = posProducts.find((p) => p.barcode === code || p._id === code);
       if (local) {
         handleAddItem(local, qty);
         toast.success(`Añadido: ${qty}x ${local.name}`);
         setSearchTerm("");
         return;
       }
-      try {
-        const res = await fetchProductByBarcode(code);
-        const product = res?.product || res;
-        if (product?._id) {
-          handleAddItem(product, qty);
-          toast.success(`Añadido: ${qty}x ${product.name}`);
-          setSearchTerm("");
-        } else {
-          throw new Error();
-        }
-      } catch {
-        toast.error(`Código "${code}" no encontrado`);
-      }
+      // TODO: Implement barcode lookup via React Query
+      // const { data: barcodeResult, isSuccess } = useProductByBarcodeQuery(code, true);
+      // if (isSuccess && barcodeResult?.product) {
+      //   const product = barcodeResult.product;
+      //   handleAddItem(product, qty);
+      //   toast.success(`Añadido: ${qty}x ${product.name}`);
+      //   setSearchTerm("");
+      // } else {
+      //   toast.error(`Código "${code}" no encontrado`);
+      // }
     },
     cancelForm: onCancel,
   });
@@ -138,7 +135,7 @@ export default function PosForm({
     }
 
     const payload = {
-      items: items.map((i: any) => ({
+      items: items.map((i) => ({
         product_id: i.product_id,
         quantity: String(i.quantity),
         unit_price: String(i.unit_price),
@@ -155,12 +152,10 @@ export default function PosForm({
         toast.success("Venta registrada con éxito");
         resetCart();
         onCancel();
-        fetchAllForPOS();
       },
       onError: (err: any) => {
         if (err?.response?.status === 403) {
           idempotencyKeyRef.current = null;
-          fetchAllForPOS();
         }
         if (err.name === "CanceledError" || err.name === "AbortError" || (typeof DOMException !== "undefined" && err instanceof DOMException && err.name === "AbortError")) {
           toast.error("Venta cancelada (operación abortada)");
@@ -180,11 +175,20 @@ export default function PosForm({
     const term = searchTerm.trim().toLowerCase();
     if (!term) return posProducts;
     return posProducts.filter(
-      (p: any) =>
+      (p: Product) =>
         p.name.toLowerCase().includes(term) ||
         (p.barcode && p.barcode.toLowerCase().includes(term))
     );
   }, [posProducts, searchTerm]);
+
+  const getBranchStock = useCallback((product: Product): string => {
+    if (!activeBranchId) return "0";
+    return (
+      product.branchInventories?.find(
+        (inventory) => inventory.branch_id === activeBranchId
+      )?.stock ?? "0"
+    );
+  }, [activeBranchId]);
 
   return (
     <POSGuardOverlay>
@@ -212,6 +216,7 @@ export default function PosForm({
         setIsCartOpen={handleCloseCart}
         hasOpenShift={!!currentShift}
         onOpenCashShift={onOpenCashShift}
+        getBranchStock={getBranchStock}
       />
     </POSGuardOverlay>
   );
