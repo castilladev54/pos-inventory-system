@@ -4,6 +4,7 @@ import {
   useQueryClient,
   keepPreviousData,
 } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import API from '../../api/axios';
 import { useAuthStore } from '../../store/authStore';
 import { exchangeRateKeys } from './useExchangeRateQueries';
@@ -135,13 +136,13 @@ mutationFn: async ({ signal, idempotencyKey, ...payload }) => {
   return (res.data.sale ?? res.data) as Sale;
 },
 
-
     onSuccess: () => {
       // Una venta descuenta stock → invalida productos + ventas + analytics
       qc.invalidateQueries({ queryKey: saleKeys.all(activeBranchId) });
       qc.invalidateQueries({ queryKey: ['products', activeBranchId] });
     },
-    onError: (error: any) => {
+    onError: (err: Error) => {
+      const error = err as AxiosError<{ message?: string; error?: string }>;
       if (error?.response?.status === 403) {
         const userId = useAuthStore.getState().user?._id;
         qc.invalidateQueries({ queryKey: cashShiftKeys.current(activeBranchId, userId) });

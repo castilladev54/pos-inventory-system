@@ -14,7 +14,7 @@ import type { FormEvent, RefObject } from "react";
 interface SalePOSFormProps {
   items: POSCartItem[];
   onCancel: () => void;
-  onAddItem: (product: Product, qty?: string | number) => void;
+  onAddItem: (product: Product, qty: string | number | undefined, getBranchStock: (p: Product) => string) => void;
   onRemoveItem: (index: number) => void;
   onQtyChange: (index: number, val: string) => void;
   onSubmit: (e: FormEvent) => void;
@@ -170,7 +170,7 @@ const SalePOSForm = ({
             placeholder="Buscar producto... (F3)"
             onEnter={(term: string) => {
               if (filteredProducts.length > 0 && !term.includes("*")) {
-                onAddItem(filteredProducts[0]!);
+                onAddItem(filteredProducts[0]!, 1, getBranchStock);
                 onSearch("");
               } else if (term.length >= 2) {
                 let code = term,
@@ -198,7 +198,7 @@ const SalePOSForm = ({
                   product={product}
                   stock={getBranchStock(product)}
                   cartQty={typeof qty === 'string' ? parseFloat(qty) || 0 : qty}
-                  onAdd={onAddItem}
+                  onAdd={(p) => onAddItem(p, 1, getBranchStock)}
                   exchangeRate={exchangeRate}
                 />
               );

@@ -84,6 +84,15 @@ export default function PosForm({
     }
   }, [createSaleMutation.isPending, setIsCartOpenExternal]);
 
+  const getBranchStock = useCallback((product: Product): string => {
+    if (!activeBranchId) return "0";
+    return (
+      product.branchInventories?.find(
+        (inventory) => inventory.branch_id === activeBranchId
+      )?.stock ?? "0"
+    );
+  }, [activeBranchId]);
+
   usePOSKeyboard({
     isFormOpen,
     showHelp: false,
@@ -104,7 +113,7 @@ export default function PosForm({
       const qty = 1;
       const local = posProducts.find((p) => p.barcode === code || p._id === code);
       if (local) {
-        handleAddItem(local, qty);
+        handleAddItem(local, qty, getBranchStock);
         toast.success(`Añadido: ${qty}x ${local.name}`);
         setSearchTerm("");
         return;
@@ -180,15 +189,6 @@ export default function PosForm({
         (p.barcode && p.barcode.toLowerCase().includes(term))
     );
   }, [posProducts, searchTerm]);
-
-  const getBranchStock = useCallback((product: Product): string => {
-    if (!activeBranchId) return "0";
-    return (
-      product.branchInventories?.find(
-        (inventory) => inventory.branch_id === activeBranchId
-      )?.stock ?? "0"
-    );
-  }, [activeBranchId]);
 
   return (
     <POSGuardOverlay>

@@ -21,19 +21,35 @@ export function usePOSCart() {
   const [cartPulse, setCartPulse] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
 
-  const handleAddItem = useCallback((product: Product, quantity: string | number = "1", getBranchStock?: (p: Product) => string) => {
+  const handleAddItem = useCallback((product: Product, quantity: string | number = "1", getBranchStock: (p: Product) => string) => {
     idempotencyKeyRef.current = null;
+    const maxStockStr = getBranchStock(product);
+    const maxStock = new Big(maxStockStr || "0");
+    const qtyToAdd = new Big(quantity);
+
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.product_id === product._id);
-      const qtyToAdd = new Big(quantity);
       if (idx >= 0) {
+        const item = prev[idx];
+        if (!item) return prev;
+        const newQty = new Big(item.quantity).plus(qtyToAdd);
+        if (newQty.gt(maxStock)) {
+          toast.error("Stock insuficiente en la sucursal");
+          return prev;
+        }
         return prev.map((item, i) =>
-          i === idx ? { ...item, quantity: new Big(item.quantity).plus(qtyToAdd).toString() } : item
+          i === idx ? { ...item, quantity: newQty.toString() } : item
         );
       }
+      
+      if (qtyToAdd.gt(maxStock)) {
+        toast.error("Stock insuficiente en la sucursal");
+        return prev;
+      }
+
       return [...prev, {
         product_id: product._id, name: product.name, quantity: qtyToAdd.toString(),
-        unit_price: String(product.price), maxStock: getBranchStock ? getBranchStock(product) : String(product.totalStock || "0"),
+        unit_price: String(product.price), maxStock: maxStockStr,
         unit_type: product.unit_type || "unidad",
       }];
     });
@@ -46,12 +62,21 @@ export function usePOSCart() {
     try {
       const qty = new Big(value || "0");
       if (qty.lt(0)) return;
+      
+      setItems((prev) => {
+        const item = prev[index];
+        if (!item) return prev;
+        const maxStock = new Big(item.maxStock || "0");
+        if (qty.gt(maxStock)) {
+          toast.error("Stock insuficiente en la sucursal");
+          return prev;
+        }
+        return prev.map((it, i) => i === index ? { ...it, quantity: value } : it);
+      });
     } catch {
       if (value !== "") return;
+      setItems((prev) => prev.map((it, i) => i === index ? { ...it, quantity: value } : it));
     }
-    setItems((prev) => {
-      return prev.map((item, i) => i === index ? { ...item, quantity: value } : item);
-    });
   };
 
   const handleRemoveItem = (index: number) => {
@@ -84,10 +109,19 @@ export function usePOSCart() {
     setItems((prev) => {
       const next = [...prev];
       try {
-        const currentQty = new Big(next[last]?.quantity || "0");
+        const item = next[last];
+        if (!item) return next;
+        const currentQty = new Big(item.quantity || "0");
         const newQty = currentQty.plus(delta);
+        const maxStock = new Big(item.maxStock || "0");
+        
+        if (newQty.gt(maxStock)) {
+          toast.error("Stock insuficiente en la sucursal");
+          return prev;
+        }
+
         if (newQty.lte(0)) { next.splice(last, 1); }
-        else if (next[last]) { next[last].quantity = newQty.toString(); }
+        else { item.quantity = newQty.toString(); }
       } catch (e) {
         console.error("Error modifying quantity", e);
       }
