@@ -85,9 +85,7 @@ export function useAllProductsForPOS() {
     queryKey: productKeys.posCatalog(activeBranchId),
     queryFn: async ({ signal }) => {
       const res = await API.get('/products?page=1&limit=5000', { signal });
-      const data = res.data;
-      const products: Product[] = data.products ?? data.data ?? (Array.isArray(data) ? data : []);
-      return products.filter((p) => p.isActive !== false);
+      return res.data.products.filter((p: Product) => p.isActive !== false);
     },
     staleTime: 5 * 60_000,  // 5 minutos — alineado con TTL de Redis del backend
     gcTime: 10 * 60_000,
