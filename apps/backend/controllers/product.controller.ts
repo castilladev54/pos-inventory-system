@@ -5,7 +5,11 @@ import { Category } from '../models/Category.js';
 import { invalidateCache, getOrSetCache, getCacheVersion, bumpCacheVersion, buildPaginatedKey, getBranchCacheVersion } from '../lib/redis.js';
 import { createAdjustmentProcess } from '../services/adjustment.service.js';
 import { ProductId } from '../types/brands.js';
-import { toProductDTO } from "../mappers/product.mapper.js";
+import type {
+  GetProductsResult,
+  ProductFacetAggregationResult,
+} from "../types/aggregation.js";
+
 
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   const { name, description, price, category, unit_type, barcode } = req.body;
