@@ -57,7 +57,7 @@ export const useAuthStore = create<AuthState>()(
         checkAuth: async () => {
           set({ isCheckingAuth: true, error: null });
           try {
-            const res = await api.get('/api/auth/check-auth');
+            const res = await api.get('/auth/check-auth');
             if (res.data.success) {
               set({ 
                 user: res.data.user, 
@@ -85,7 +85,7 @@ export const useAuthStore = create<AuthState>()(
             } else {
               payload = emailOrCredentials;
             }
-            const res = await api.post('/api/auth/login', payload, {
+            const res = await api.post('/auth/login', payload, {
               headers: {
                 'x-global-request': 'true'
               }
@@ -109,7 +109,7 @@ export const useAuthStore = create<AuthState>()(
         logout: async () => {
           set({ isLoading: true, error: null });
           try {
-            await api.post('/api/auth/logout');
+            await api.post('/auth/logout');
           } catch {
             // Ignoramos error en logout backend, pero siempre limpiamos localmente
           } finally {
@@ -148,7 +148,7 @@ export const useAuthStore = create<AuthState>()(
         forgotPassword: async (email: string) => {
           set({ isLoading: true, error: null });
           try {
-            const response = await api.post('/api/auth/forgot-password', { email });
+            const response = await api.post('/auth/forgot-password', { email });
             set({ message: response.data.message });
           } catch (error: any) {
             set({
@@ -163,7 +163,7 @@ export const useAuthStore = create<AuthState>()(
         resetPassword: async (token: string, password: string) => {
           set({ isLoading: true, error: null });
           try {
-            const response = await api.post(`/api/auth/reset-password/${token}`, { password });
+            const response = await api.post(`/auth/reset-password/${token}`, { password });
             set({ message: response.data.message });
           } catch (error: any) {
             set({
@@ -178,7 +178,7 @@ export const useAuthStore = create<AuthState>()(
         createUserByAdmin: async (name: string, email: string, password: string) => {
           set({ isLoading: true, error: null });
           try {
-            const response = await api.post('/api/auth/create-user', { name, email, password });
+            const response = await api.post('/auth/create-user', { name, email, password });
             set({ message: response.data.message });
             return response.data;
           } catch (error: any) {
@@ -194,7 +194,7 @@ export const useAuthStore = create<AuthState>()(
         purgeUser: async (targetUserId: string) => {
           set({ isLoading: true, error: null });
           try {
-            const response = await api.delete(`/api/auth/purge/${targetUserId}`);
+            const response = await api.delete(`/auth/purge/${targetUserId}`);
             set({ message: response.data.message });
             return response.data;
           } catch (error: any) {

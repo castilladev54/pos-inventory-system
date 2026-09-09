@@ -3,7 +3,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
 import { useCancelSale, saleKeys } from './queries/useSaleQueries';
-import API from '../api/axios';
+import { api as API } from '../api/axiosClient';
 import type { SaleId } from '@inventory/shared';
 import type { SaleDetailDTO } from '../types/saleDTO';
 

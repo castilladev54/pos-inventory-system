@@ -63,7 +63,7 @@ export function useAdjustmentsQuery(branchId: BranchId | null, page = 1, limit =
     queryKey: adjustmentKeys.list(branchId, page, limit),
     queryFn: async ({ signal }) => {
       if (!branchId) throw new Error('Se requiere sucursal');
-      const res = await api.get(`/api/adjustments?page=${page}&limit=${limit}`, { signal });
+      const res = await api.get(`/adjustments?page=${page}&limit=${limit}`, { signal });
       return res.data;
     },
     enabled: !!branchId,
@@ -78,7 +78,7 @@ export function useCreateAdjustment() {
     mutationFn: async (payload) => {
       // Generamos un idempotency key simple basado en tiempo para evitar clicks dobles
       const idempotencyKey = `adj-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      const res = await api.post('/api/adjustments', payload, {
+      const res = await api.post('/adjustments', payload, {
         headers: {
           'Idempotency-Key': idempotencyKey
         }

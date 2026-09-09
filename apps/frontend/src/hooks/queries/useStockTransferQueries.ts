@@ -31,7 +31,7 @@ export function useStockTransfersQuery(branchId: BranchId | null) {
     queryKey: stockTransferKeys.list(branchId),
     queryFn: async ({ signal }) => {
       if (!branchId) return [];
-      const res = await api.get('/api/stock-transfers', { signal });
+      const res = await api.get('/stock-transfers', { signal });
       return res.data.transfers ?? res.data.data ?? res.data;
     },
     enabled: !!branchId,
@@ -43,7 +43,7 @@ export function useCreateStockTransfer() {
   const qc = useQueryClient();
   return useMutation<IStockTransfer, Error, CreateStockTransferPayload>({
     mutationFn: async (payload) => {
-      const res = await api.post('/api/stock-transfers', payload);
+      const res = await api.post('/stock-transfers', payload);
       return res.data.transfer ?? res.data.data ?? res.data;
     },
     onSuccess: () => {
@@ -57,7 +57,7 @@ export function useUpdateStockTransferStatus() {
   const qc = useQueryClient();
   return useMutation<IStockTransfer, Error, { id: StockTransferId; payload: UpdateStockTransferStatusPayload }>({
     mutationFn: async ({ id, payload }) => {
-      const res = await api.put(`/api/stock-transfers/${id}/status`, payload);
+      const res = await api.put(`/stock-transfers/${id}/status`, payload);
       return res.data.transfer ?? res.data.data ?? res.data;
     },
     onSuccess: () => {

@@ -47,7 +47,7 @@ import type {
   ProductId,
   UnitType,
 } from '@inventory/shared';
-import API from '../api/axios';
+import { api as API } from '../api/axiosClient';
 
 /* ─── Constantes ─────────────────────────────────────────── */
 const ITEMS_PER_PAGE = 10;

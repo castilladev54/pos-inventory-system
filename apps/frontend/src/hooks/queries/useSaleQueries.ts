@@ -5,7 +5,7 @@ import {
   keepPreviousData,
 } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
-import API from '../../api/axios';
+import { api as API } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
 import { exchangeRateKeys } from './useExchangeRateQueries';
 import { cashShiftKeys } from './useCashShiftQueries';

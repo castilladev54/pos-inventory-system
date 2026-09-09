@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import API from "../api/axios";
+import { api as API } from "../api/axiosClient";
 
 const API_URL = "/staff";
 

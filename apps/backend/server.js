@@ -102,7 +102,7 @@ app.use((req, res, next) => {
 const whitelist = [
   process.env.CLIENT_URL,
   'https://dashboard-react-tailwindcss.vercel.app',
-  'http://localhost:5173'
+  'http://localhost:5175'
 ]
 
 app.use(cors({

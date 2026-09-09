@@ -36,7 +36,7 @@ export function useCurrentCashShiftQuery(branchId: BranchId | null, userId: User
     queryFn: async ({ signal }) => {
       if (!branchId || !userId) return null;
       try {
-        const res = await api.get('/api/shifts/active', { signal });
+        const res = await api.get('/shifts/active', { signal });
         const payload = res.data;
         return (payload.shift !== undefined ? payload.shift : (payload.data !== undefined ? payload.data : payload)) as ICashShift | null;
       } catch (error: any) {
@@ -58,7 +58,7 @@ export function useOpenCashShift() {
   const qc = useQueryClient();
   return useMutation<ICashShift, Error, { branchId: BranchId; userId: UserId; payload: OpenCashShiftPayload }>({
     mutationFn: async ({ payload }) => {
-      const res = await api.post('/api/shifts/open', payload);
+      const res = await api.post('/shifts/open', payload);
       const data = res.data;
       return (data.shift !== undefined ? data.shift : (data.data !== undefined ? data.data : data)) as ICashShift;
     },
@@ -74,7 +74,7 @@ export function useCloseCashShift() {
   return useMutation<ICashShift, Error, { shiftId: CashShiftId; branchId: BranchId; userId: UserId; payload: CloseCashShiftPayload }>({
     mutationFn: async ({ payload }) => {
       // The backend expects /api/shifts/close, shiftId is obtained by the backend via cashier_id + branch_id in token
-      const res = await api.post(`/api/shifts/close`, payload);
+      const res = await api.post(`/shifts/close`, payload);
       const data = res.data;
       return (data.shift !== undefined ? data.shift : (data.data !== undefined ? data.data : data)) as ICashShift;
     },

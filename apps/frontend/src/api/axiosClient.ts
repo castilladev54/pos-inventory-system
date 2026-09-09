@@ -36,7 +36,7 @@ export const setOnUnauthorizedCallback = (cb: UnauthorizedCallback) => {
 };
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
+  baseURL: `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}`,
   withCredentials: true, // 🚨 CRUCIAL: Permite el envío automático de cookies HttpOnly
   headers: {
     'Content-Type': 'application/json',
@@ -124,7 +124,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const res = await api.post('/api/auth/refresh');
+        const res = await api.post('/auth/refresh');
         const newToken = res.data.token;
 
         useAuthStore.getState().actions.updateToken(newToken);

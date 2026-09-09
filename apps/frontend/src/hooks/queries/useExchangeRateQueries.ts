@@ -3,7 +3,7 @@ import {
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
-import API from '../../api/axios';
+import { api as API } from '../../api/axiosClient';
 import { RateSchema } from '../../schemas/rateSchema';
 import type { ExchangeRate } from '@inventory/shared';
 

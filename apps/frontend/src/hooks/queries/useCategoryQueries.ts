@@ -3,7 +3,7 @@ import {
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
-import API from '../../api/axios';
+import { api as API } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
 import type { Category, CategoryId } from '@inventory/shared';
 
