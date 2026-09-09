@@ -256,11 +256,10 @@ export interface ApiProductResponse {
 export interface ApiProductListResponse {
   success: boolean;
   products: Product[];
-  pagination?: {
-    totalItems: number;
-    totalPages: number;
-    currentPage: number;
-  };
+  total: number;
+  totalPages: number;
+  currentPage: number;
+  fromCache?: boolean;
 }
 
 // ─── TURNO DE CAJA ──────────────────────────────────────────────────────────

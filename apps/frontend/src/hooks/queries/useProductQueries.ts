@@ -4,12 +4,13 @@ import {
   useQueryClient,
   keepPreviousData,
 } from '@tanstack/react-query';
-import API from '../../api/axios';
+import { api as API } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
 import type {
   Product,
   ProductId,
   ApiProductResponse,
+  ApiProductListResponse,
 } from '@inventory/shared';
 
 // ─── Query Keys ──────────────────────────────────────────────────────────────
@@ -61,13 +62,13 @@ export function useProductsQuery(page: number, limit: number, search: string, ha
   return useQuery<ProductListResponse>({
     queryKey: [...productKeys.list(activeBranchId, page, limit, search), { hasDebt }] as const,
     queryFn: async ({ signal }) => {
-      const res = await API.get(`/products?${params.toString()}`, { signal });
+      const res = await API.get<ApiProductListResponse>(`/products?${params.toString()}`, { signal });
       const data = res.data;
       return {
-        products: data.products ?? data.data ?? (Array.isArray(data) ? data : []),
-        total: data.total ?? 0,
-        totalPages: data.totalPages ?? 1,
-        currentPage: data.currentPage ?? page,
+        products: data.products,
+        total: data.total,
+        totalPages: data.totalPages,
+        currentPage: data.currentPage,
       };
     },
     placeholderData: keepPreviousData,
