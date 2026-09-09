@@ -5,6 +5,7 @@ import { Category } from '../models/Category.js';
 import { invalidateCache, getOrSetCache, getCacheVersion, bumpCacheVersion, buildPaginatedKey, getBranchCacheVersion } from '../lib/redis.js';
 import { createAdjustmentProcess } from '../services/adjustment.service.js';
 import { ProductId } from '../types/brands.js';
+import { toProductDTO } from "../mappers/product.mapper.js";
 
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   const { name, description, price, category, unit_type, barcode } = req.body;
@@ -66,8 +67,8 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
 
     // 2. Validación estricta de ordenación (Whitelist)
     const allowedSortFields = ['createdAt', 'name', 'price', 'total_stock'];
-    const sortBy = allowedSortFields.includes(req.query.sortBy as string) 
-      ? (req.query.sortBy as string) 
+    const sortBy = allowedSortFields.includes(req.query.sortBy as string)
+      ? (req.query.sortBy as string)
       : 'createdAt';
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
 
@@ -82,7 +83,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       : null;
 
     // Función de base de datos
-    const fetchFromDB = async () => {
+    const fetchFromDB = async (): Promise<GetProductsResult> => {
       // Construcción del Match inicial
       const matchStage: any = { user: new mongoose.Types.ObjectId(ownerId) };
       if (normalizedSearch) {
@@ -93,63 +94,69 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
         ];
       }
 
-      // Aggregation Pipeline
-      const [result] = await Product.aggregate([
+      const pipeline: mongoose.PipelineStage[] = [
         { $match: matchStage },
-        
-        // Cruce global del inventario en todas las sucursales
         {
           $lookup: {
-            from: 'inventories',
-            localField: '_id',
-            foreignField: 'product_id',
-            as: 'inventoryData'
+            from: "inventories",
+            localField: "_id",
+            foreignField: "product_id",
+            as: "inventoryData",
           }
         },
-        // Aplanamiento del stock total sumando todas las sucursales
         {
           $addFields: {
-            total_stock: { 
-              $ifNull: [{ $sum: '$inventoryData.quantity' }, 0] 
-            }
-          }
+            branchInventories: {
+              $map: {
+                input: "$inventoryData",
+                as: "inv",
+                in: {
+                  _id: "$$inv._id",
+                  product_id: "$$inv.product_id",
+                  branch_id: "$$inv.branch_id",
+                  stock: "$$inv.quantity",
+                  min_stock: "$$inv.min_stock_alert",
+                  createdAt: "$$inv.createdAt",
+                  updatedAt: "$$inv.updatedAt",
+                },
+              },
+            },
+            totalStock: {
+              $sum: "$inventoryData.quantity",
+            },
+          },
         },
-        
-        ...(req.query.hasDebt === 'true' ? [{ $match: { total_stock: { $lt: 0 } } }] : []),
-        
-        // Cruce y proyección estricta de la categoría
+        ...(req.query.hasDebt === "true"
+          ? [{ $match: { totalStock: { $lt: 0 } } }]
+          : []),
         {
           $lookup: {
-            from: 'categories',
-            localField: 'category',
-            foreignField: '_id',
+            from: "categories",
+            localField: "category",
+            foreignField: "_id",
             pipeline: [
-              { $project: { _id: 1, name: 1 } }
+              { $project: { _id: 1, name: 1, user: 1 } },
             ],
-            as: 'category'
+            as: "category",
           }
         },
         {
           $unwind: {
-            path: '$category',
-            preserveNullAndEmptyArrays: true
+            path: "$category",
+            preserveNullAndEmptyArrays: true,
           }
         },
-
-        // Limpieza de datos intermedios
         { $project: { inventoryData: 0 } },
-
-        // Ordenación dinámica segura
         { $sort: { [sortBy]: sortOrder } },
-
-        // Facet para conteo y paginación paralela
         {
           $facet: {
-            metadata: [{ $count: 'total' }],
-            data: [{ $skip: skip }, { $limit: limit }]
-          }
-        }
-      ]);
+            metadata: [{ $count: "total" }],
+            data: [{ $skip: skip }, { $limit: limit }],
+          },
+        },
+      ];
+      const [result] = await Product.aggregate<ProductFacetAggregationResult>(pipeline);
+
 
       const total = result?.metadata[0]?.total || 0;
       const products = result?.data || [];
