@@ -8,6 +8,7 @@ import DataTable, { DataTableColumn } from '../organisms/DataTable';
 import CreateStockTransferModal from './CreateStockTransferModal';
 import toast from 'react-hot-toast';
 import type { IStockTransfer } from '@inventory/shared';
+import { getBranchName } from '../../utils/branch';
 
 const StockTransferManager = () => {
   const { activeBranchId } = useAuthStore();
@@ -75,7 +76,7 @@ const StockTransferManager = () => {
       label: activeTab === 'incoming' ? 'Origen' : 'Destino',
       render: (val) => (
         <span className="font-medium text-white">
-          {typeof val === 'string' ? val : (val as any)?.name}
+          {getBranchName(val as any)}
         </span>
       )
     },

@@ -5,17 +5,12 @@ import Button from '../atoms/Button';
 import Spinner from '../atoms/Spinner';
 import EmptyState from '../molecules/EmptyState';
 import Pagination from '../molecules/Pagination';
+import { DataTableColumn } from './DataTable.types';
 
-export interface DataTableColumn<T> {
-  key: string;
-  label: string;
-  render?: (value: any, row: T) => ReactNode;
-  className?: string;
-  headerClassName?: string;
-}
+export type { DataTableColumn };
 
 interface DataTableProps<T> {
-  columns: (DataTableColumn<T> | any)[];
+  columns: DataTableColumn<T>[];
   data: T[];
   isLoading?: boolean;
   onEdit?: (row: T) => void;
@@ -31,9 +26,10 @@ interface DataTableProps<T> {
   totalPages?: number;
   onPageChange?: (page: number) => void;
   className?: string;
+  getRowKey?: (row: T, index: number) => string | number;
 }
 
-const DataTable = <T extends Record<string, any>>({
+const DataTable = <T,>({
   columns = [],
   data = [],
   isLoading = false,
@@ -47,6 +43,7 @@ const DataTable = <T extends Record<string, any>>({
   totalPages,
   onPageChange,
   className = '',
+  getRowKey,
 }: DataTableProps<T>) => {
   const hasActions = onEdit || onDelete;
 
@@ -69,19 +66,15 @@ const DataTable = <T extends Record<string, any>>({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-white/5 bg-black/20 text-gray-400 text-xs sm:text-sm uppercase tracking-wider">
-                  {columns.map((col: any, colIdx) => {
-                    const colKey = col.key || col.accessorKey || col.id || `col-${colIdx}`;
-                    const colLabel = col.label || (typeof col.header === 'string' ? col.header : col.header);
-                    return (
-                      <th
-                        key={colKey}
-                        scope="col"
-                        className={`px-4 py-3 sm:px-6 sm:py-4 font-medium ${col.headerClassName ?? ''}`}
-                      >
-                        {colLabel}
-                      </th>
-                    );
-                  })}
+                  {columns.map((col) => (
+                    <th
+                      key={col.key as string}
+                      scope="col"
+                      className={`px-4 py-3 sm:px-6 sm:py-4 font-medium ${col.headerClassName ?? ''}`}
+                    >
+                      {col.label}
+                    </th>
+                  ))}
                   {hasActions && (
                     <th scope="col" className="px-4 py-3 sm:px-6 sm:py-4 font-medium text-right">
                       Acciones
@@ -91,59 +84,59 @@ const DataTable = <T extends Record<string, any>>({
               </thead>
 
               <tbody className="divide-y divide-white/5">
-                {data.map((row, rowIndex) => (
-                  <motion.tr
-                    key={row._id ?? row.id ?? rowIndex}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: rowIndex * 0.04 }}
-                    className="hover:bg-white/5 transition-colors group"
-                  >
-                    {columns.map((col: any, colIdx) => {
-                      const colKey = col.key || col.accessorKey || col.id || `col-${colIdx}`;
-                      const valKey = col.accessorKey || col.key || col.id;
-                      return (
+                {data.map((row, rowIndex) => {
+                  const rowKey = getRowKey
+                    ? getRowKey(row, rowIndex)
+                    : ((row as { _id?: string })._id ?? (row as { id?: string }).id ?? rowIndex);
+
+                  return (
+                    <motion.tr
+                      key={rowKey}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: rowIndex * 0.04 }}
+                      className="hover:bg-white/5 transition-colors group"
+                    >
+                      {columns.map((col) => (
                         <td
-                          key={colKey}
+                          key={col.key as string}
                           className={`px-4 py-3 sm:px-6 sm:py-4 text-gray-300 text-sm ${col.className ?? ''}`}
                         >
                           {col.render
-                            ? col.render(row[valKey], row)
-                            : col.cell
-                              ? col.cell({ row: { original: row }, getValue: () => row[valKey] })
-                              : (row[valKey] ?? '')}
+                            ? col.render(row[col.key], row)
+                            : (row[col.key] as ReactNode)}
                         </td>
-                      );
-                    })}
+                      ))}
 
-                    {hasActions && (
-                      <td className="px-4 py-3 sm:px-6 sm:py-4 text-right">
-                        <div className="flex items-center justify-end gap-1 sm:gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          {onEdit && (
-                            <Button
-                              variant="icon"
-                              onClick={() => onEdit(row)}
-                              aria-label="Editar registro"
-                              className="text-blue-400 hover:bg-blue-500/10 p-1.5 sm:p-2"
-                            >
-                              <Edit2 size={16} />
-                            </Button>
-                          )}
-                          {onDelete && (
-                            <Button
-                              variant="icon"
-                              onClick={() => onDelete(row)}
-                              aria-label="Eliminar registro"
-                              className="text-red-400 hover:bg-red-500/10 p-1.5 sm:p-2"
-                            >
-                              <Trash2 size={16} />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </motion.tr>
-                ))}
+                      {hasActions && (
+                        <td className="px-4 py-3 sm:px-6 sm:py-4 text-right">
+                          <div className="flex items-center justify-end gap-1 sm:gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                            {onEdit && (
+                              <Button
+                                variant="icon"
+                                onClick={() => onEdit(row)}
+                                aria-label="Editar registro"
+                                className="text-blue-400 hover:bg-blue-500/10 p-1.5 sm:p-2"
+                              >
+                                <Edit2 size={16} />
+                              </Button>
+                            )}
+                            {onDelete && (
+                              <Button
+                                variant="icon"
+                                onClick={() => onDelete(row)}
+                                aria-label="Eliminar registro"
+                                className="text-red-400 hover:bg-red-500/10 p-1.5 sm:p-2"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </motion.tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

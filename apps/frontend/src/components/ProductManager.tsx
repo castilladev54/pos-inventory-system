@@ -20,6 +20,7 @@ import FormField from './molecules/FormField';
 import SectionHeader from './molecules/SectionHeader';
 import ConfirmDialog from './molecules/ConfirmDialog';
 import DataTable, { DataTableColumn } from './organisms/DataTable';
+import { createDataTableColumn } from './organisms/DataTable.types';
 import BarcodeScanner from './BarcodeScanner';
 import ProductSearchBar from './molecules/ProductSearchBar';
 import { RateGuard } from './pos/RateGuard';
@@ -72,61 +73,79 @@ const formatUnit = (stock: number, unit_type?: string) => {
   return stock === 1 ? 'unidad' : 'unidades';
 };
 
-const buildColumns = (toBsFn: (usd: string, rate: string) => string, rate: number): DataTableColumn<Product>[] => [
-  {
-    key: 'name',
-    label: 'Producto',
-    render: (val, row) => (
-      <div>
-        <p className="font-semibold text-white text-sm sm:text-base">{val}</p>
-        <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">ID: {row._id?.slice(-6)}</p>
-      </div>
-    ),
-  },
-  {
-    key: 'category',
-    label: 'Categoría',
-    headerClassName: 'hidden md:table-cell',
-    className: 'hidden md:table-cell',
-    render: (val) => (
-      <span className="bg-white/5 px-2 py-1 rounded-md text-xs border border-white/10 text-gray-400">
-        {val?.name || 'Sin Categoría'}
-      </span>
-    ),
-  },
-  {
-    key: 'price',
-    label: 'Precio',
-    render: (val) => (
-      <div>
-        <p className="text-amber-500 font-medium text-sm sm:text-base">${Number(val).toFixed(2)}</p>
-        <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">Bs {toBsFn(String(val), String(rate))}</p>
-      </div>
-    ),
-  },
-  {
-    key: 'total_stock',
-    label: 'Stock Global',
-    render: (val, row) => {
-      const formattedStock = new Intl.NumberFormat('es-VE', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 3,
-      }).format(val);
-      return (
-        <Badge variant={stockVariant(val)}>
-          {formattedStock}{' '}
-          <span className="hidden sm:inline">{formatUnit(val, row.unit_type)}</span>
-        </Badge>
-      );
-    },
-  },
-  {
-    key: 'barcode',
-    label: 'Barcode',
-    headerClassName: 'hidden lg:table-cell',
-    className: 'hidden lg:table-cell font-mono text-xs text-gray-400',
-  },
-];
+const buildColumns = (
+  toBsFn: (usd: string, rate: string) => string,
+  rate: string,
+) => {
+  const column = createDataTableColumn<Product>();
+
+  return [
+    column({
+      key: 'name',
+      label: 'Producto',
+      render: (val, row) => (
+        <div>
+          <p className="font-semibold text-white text-sm sm:text-base">{val}</p>
+          <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">ID: {row._id?.slice(-6)}</p>
+        </div>
+      ),
+    }),
+
+    column({
+      key: 'category',
+      label: 'Categoría',
+      headerClassName: 'hidden md:table-cell',
+      className: 'hidden md:table-cell',
+      render: (val) => (
+        <span className="bg-white/5 px-2 py-1 rounded-md text-xs border border-white/10 text-gray-400">
+          {typeof val === 'string' ? 'Sin Categoría' : val.name}
+        </span>
+      ),
+    }),
+
+    column({
+      key: 'price',
+      label: 'Precio',
+      render: (val) => (
+        <div>
+          <p className="text-amber-500 font-medium text-sm sm:text-base">
+            ${Number(val).toFixed(2)}
+          </p>
+          <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">
+            Bs {toBsFn(String(val), rate)}
+          </p>
+        </div>
+      ),
+    }),
+
+    column({
+      key: 'totalStock',
+      label: 'Stock Global',
+      render: (val, row) => {
+        const numericStock = Number(val);
+        const formattedStock = new Intl.NumberFormat('es-VE', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 3,
+        }).format(numericStock);
+        return (
+          <Badge variant={stockVariant(numericStock)}>
+            {formattedStock}{' '}
+            <span className="hidden sm:inline">
+              {formatUnit(numericStock, row.unit_type)}
+            </span>
+          </Badge>
+        );
+      },
+    }),
+
+    column({
+      key: 'barcode',
+      label: 'Barcode',
+      headerClassName: 'hidden lg:table-cell',
+      className: 'hidden lg:table-cell font-mono text-xs text-gray-400',
+    }),
+  ];
+};
 
 const ProductManagerInner = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -138,7 +157,7 @@ const ProductManagerInner = () => {
   const { data, isLoading, error } = useProductsQuery(currentPage, ITEMS_PER_PAGE, debouncedSearch, showDebtOnly);
   const { data: categories = [] } = useAllCategoriesQuery();
   const { data: rateData } = useExchangeRateQuery();
-  const exchangeRate = rateData?.rate ?? 1;
+  const exchangeRate = rateData?.rate ?? "1";
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
 
   // Mutations
