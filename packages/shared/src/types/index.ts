@@ -66,7 +66,11 @@ export interface Branch {
 export interface Category {
   _id: CategoryId;
   name: string;
+  description: string;
   user: BusinessOwnerId;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 }
 
 // ─── INVENTARIO POR SUCURSAL ────────────────────────────────────────────────
