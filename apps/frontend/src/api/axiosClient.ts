@@ -92,7 +92,7 @@ api.interceptors.response.use(
     const status = error.response?.status;
 
     // 1. Sesión expirada (401) - Patrón Singleton para Refresh
-    if (status === 401 && originalRequest.url !== '/api/auth/refresh' && !originalRequest._retry) {
+    if (status === 401 && originalRequest.url !== '/auth/refresh' && !originalRequest._retry) {
       if (isRefreshing) {
         try {
           const signal = originalRequest.signal;
@@ -148,7 +148,7 @@ api.interceptors.response.use(
 
     // 403 general o un 401 que falló en el refresh (ej. la ruta original ERA /refresh)
     // Regla de Oro: clearAuth() ignora los 403, permitiendo que lleguen a los componentes o caches
-    if (status === 401 && originalRequest.url !== '/api/auth/refresh') {
+    if (status === 401 && originalRequest.url !== '/auth/refresh') {
       useAuthStore.getState().actions.clearAuth();
     }
 
