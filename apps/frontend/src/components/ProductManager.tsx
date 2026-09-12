@@ -148,6 +148,13 @@ const buildColumns = (
 };
 
 const ProductManagerInner = () => {
+  useEffect(() => {
+    console.log('[ProductManager] MOUNT');
+    return () => {
+      console.log('[ProductManager] UNMOUNT');
+    };
+  }, []);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');

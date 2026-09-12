@@ -84,6 +84,7 @@ const BranchGate = ({ children }: BranchGateProps) => {
 
 function App() {
   const { isCheckingAuth, checkAuth, isSubscriptionExpired } = useAuthStore();
+  console.log('[APP] render', { isCheckingAuth });
   const isDarkMode = useUiStore((state) => state.isDarkMode);
   const location = useLocation();
 

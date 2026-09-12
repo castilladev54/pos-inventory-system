@@ -72,7 +72,13 @@ export const useAuthStore = create<AuthState>()(
               }
             }
           } finally {
+            console.log('[AUTH] checkAuth FINALLY', {
+              isCheckingAuthBeforeSet: get().isCheckingAuth,
+            });
             set({ isCheckingAuth: false });
+            console.log('[AUTH] checkAuth FINALLY AFTER SET', {
+              isCheckingAuth: get().isCheckingAuth,
+            });
           }
         },
 

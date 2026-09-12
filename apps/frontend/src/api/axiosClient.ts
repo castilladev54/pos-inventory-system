@@ -1,6 +1,17 @@
 import axios, { InternalAxiosRequestConfig, AxiosError, GenericAbortSignal } from 'axios';
 import { useAuthStore } from '../store/authStore';
 
+// DTO for refresh token response
+interface RefreshTokenResponse {
+  success: boolean;
+  token: string;
+}
+
+interface ApiErrorResponse {
+  code?: string;
+  message?: string;
+}
+
 declare module 'axios' {
   export interface InternalAxiosRequestConfig {
     _retry?: boolean;
@@ -48,6 +59,7 @@ export const api = axios.create({
  */
 api.interceptors.request.use(
   (config) => {
+    console.log('[HTTP] request', { url: config.url, authorization: config.headers?.Authorization });
     const authState = useAuthStore.getState();
     const { activeBranchId, token } = authState;
 
@@ -79,9 +91,13 @@ api.interceptors.request.use(
  * Interceptor de Respuestas: Manejo global de expiración y concurrencia
  */
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+  console.log('[HTTP] response', { url: response.config?.url, status: response.status });
+  return response;
+},
   async (error: AxiosError) => {
-    const originalRequest = error.config;
+    console.log('[HTTP] error', { url: error.config?.url, status: error.response?.status });
+  const originalRequest = error.config;
     if (!originalRequest) return Promise.reject(error);
 
     // Silenciar errores de cancelación de TanStack Query (no es un fallo de red real)
@@ -124,13 +140,23 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const res = await api.post('/auth/refresh');
+        console.log('[AUTH] refresh started');
+        const res = await api.post<RefreshTokenResponse>('/auth/refresh');
+        console.log('[AUTH] refresh response', res.data);
         const newToken = res.data.token;
 
         useAuthStore.getState().actions.updateToken(newToken);
+        console.log('[AUTH] token updated');
         originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
 
         processQueue(null, newToken);
+        console.log('[AUTH] queue processed');
+        console.log('[AUTH] retrying original request', {
+          url: originalRequest.url,
+          method: originalRequest.method,
+          retry: originalRequest._retry,
+          authorization: originalRequest.headers?.Authorization,
+        });
         return api(originalRequest);
       } catch (err) {
         const axiosError = err as AxiosError;
