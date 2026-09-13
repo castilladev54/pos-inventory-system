@@ -63,7 +63,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 
       const idx = state.items.findIndex((i) => i.product_id === product._id);
       if (idx >= 0) {
-        const item = state.items[idx]!;
+        const item = state.items[idx];
+        if (!item) return state;
         const currentQty = parseBig(item.quantity);
         if (!currentQty) {
           return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: product._id } };
@@ -109,10 +110,10 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       }
 
       if (qty.lt(0)) {
-        return { ...state, error: { id: operationId, code: "INVALID_QUANTITY", productId: item!.product_id } };
+        return { ...state, error: { id: operationId, code: "INVALID_QUANTITY", productId: item.product_id } };
       }
 
-      const maxStock = parseBig(item.maxStock || "0");
+      const maxStock = parseBig(item.maxStock);
       if (!maxStock) {
         return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: item.product_id } };
       }
@@ -138,7 +139,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     if (!item) return state;
       
       const currentQty = parseBig(item.quantity);
-      const maxStock = parseBig(item.maxStock || "0");
+      const maxStock = parseBig(item.maxStock);
       const deltaBig = parseBig(delta);
       
       if (!currentQty || !maxStock || !deltaBig) {
@@ -148,7 +149,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       const newQty = currentQty.plus(deltaBig);
       
       if (newQty.lt(0)) {
-        return { ...state, error: { id: operationId, code: "INVALID_QUANTITY", productId: item!.product_id } };
+        return { ...state, error: { id: operationId, code: "INVALID_QUANTITY", productId: item.product_id } };
       }
 
       if (newQty.gt(maxStock)) {
@@ -159,7 +160,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       if (newQty.eq(0)) {
         nextItems.splice(last, 1);
       } else {
-        nextItems[last] = { ...item!, quantity: newQty.toString() };
+        nextItems[last] = { ...item, quantity: newQty.toString() };
       }
       
       return { ...state, items: nextItems, error: null };
