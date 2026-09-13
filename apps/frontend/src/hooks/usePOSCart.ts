@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, useReducer } from "react";
 import toast from "react-hot-toast";
 import Big from "big.js";
 import type { Product, ProductId, UnitType } from "@inventory/shared";
@@ -15,8 +15,186 @@ export interface POSCartItem {
   discount?: string;
 }
 
+export type CartError =
+  | { id: string; code: "INSUFFICIENT_STOCK"; productId: ProductId }
+  | { id: string; code: "INVALID_QUANTITY"; productId: ProductId }
+  | { id: string; code: "INVALID_NUMERIC_VALUE"; productId?: ProductId };
+
+export interface CartState {
+  items: POSCartItem[];
+  error: CartError | null;
+}
+
+export type CartAction =
+  | { type: 'ADD_ITEM'; product: Product; quantity: string | number; maxStockStr: string; operationId: string }
+  | { type: 'CHANGE_ITEM_QTY'; index: number; quantity: string; operationId: string }
+  | { type: 'REMOVE_ITEM'; index: number }
+  | { type: 'MODIFY_LAST_ITEM_QTY'; delta: number; operationId: string }
+  | { type: 'CLEAR_CART' }
+  | { type: 'RESET_CART' };
+
+function parseBig(val: string | number | undefined): Big | null {
+  if (val === "" || val == null) return null;
+  try {
+    return new Big(val);
+  } catch {
+    return null;
+  }
+}
+
+function cartReducer(state: CartState, action: CartAction): CartState {
+  switch (action.type) {
+    case 'ADD_ITEM': {
+      const { product, quantity, maxStockStr, operationId } = action;
+      
+      const maxStock = parseBig(maxStockStr || "0");
+      const qtyToAdd = parseBig(quantity);
+
+      if (!maxStock || !qtyToAdd) {
+        return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: product._id } };
+      }
+
+      if (qtyToAdd.lte(0)) {
+        return { 
+          ...state, 
+          error: { id: operationId, code: "INVALID_QUANTITY", productId: product._id } 
+        };
+      }
+
+      const idx = state.items.findIndex((i) => i.product_id === product._id);
+      if (idx >= 0) {
+        const item = state.items[idx]!;
+        const currentQty = parseBig(item.quantity);
+        if (!currentQty) {
+          return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: product._id } };
+        }
+        const newQty = currentQty.plus(qtyToAdd);
+        if (newQty.gt(maxStock)) {
+          return { ...state, error: { id: operationId, code: "INSUFFICIENT_STOCK", productId: product._id } };
+        }
+        const nextItems = state.items.map((it, i) =>
+          i === idx ? { ...it, quantity: newQty.toString() } : it
+        );
+        return { ...state, items: nextItems, error: null };
+      }
+
+      if (qtyToAdd.gt(maxStock)) {
+        return { ...state, error: { id: operationId, code: "INSUFFICIENT_STOCK", productId: product._id } };
+      }
+
+      const newItem: POSCartItem = {
+        product_id: product._id,
+        name: product.name,
+        quantity: qtyToAdd.toString(),
+        unit_price: String(product.price),
+        maxStock: maxStockStr,
+        unit_type: product.unit_type || "unidad",
+      };
+      return { ...state, items: [...state.items, newItem], error: null };
+    }
+    
+    case 'CHANGE_ITEM_QTY': {
+      const { index, quantity, operationId } = action;
+      const item = state.items[index];
+      if (!item) return state;
+
+      if (quantity === "") {
+        const nextItems = state.items.map((it, i) => i === index ? { ...it, quantity: "" } : it);
+        return { ...state, items: nextItems, error: null };
+      }
+
+      const qty = parseBig(quantity);
+      if (!qty) {
+        return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: item.product_id } };
+      }
+
+      if (qty.lt(0)) {
+        return { ...state, error: { id: operationId, code: "INVALID_QUANTITY", productId: item!.product_id } };
+      }
+
+      const maxStock = parseBig(item.maxStock || "0");
+      if (!maxStock) {
+        return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: item.product_id } };
+      }
+
+      if (qty.gt(maxStock)) {
+        return { ...state, error: { id: operationId, code: "INSUFFICIENT_STOCK", productId: item.product_id } };
+      }
+
+      const nextItems = state.items.map((it, i) => i === index ? { ...it, quantity } : it);
+      return { ...state, items: nextItems, error: null };
+    }
+
+    case 'REMOVE_ITEM': {
+      return { ...state, items: state.items.filter((_, i) => i !== action.index), error: null };
+    }
+
+    case 'MODIFY_LAST_ITEM_QTY': {
+      const { delta, operationId } = action;
+      if (state.items.length === 0) return state;
+      
+      const last = state.items.length - 1;
+      const item = state.items[last];
+    if (!item) return state;
+      
+      const currentQty = parseBig(item.quantity);
+      const maxStock = parseBig(item.maxStock || "0");
+      const deltaBig = parseBig(delta);
+      
+      if (!currentQty || !maxStock || !deltaBig) {
+        return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: item.product_id } };
+      }
+
+      const newQty = currentQty.plus(deltaBig);
+      
+      if (newQty.lt(0)) {
+        return { ...state, error: { id: operationId, code: "INVALID_QUANTITY", productId: item!.product_id } };
+      }
+
+      if (newQty.gt(maxStock)) {
+        return { ...state, error: { id: operationId, code: "INSUFFICIENT_STOCK", productId: item.product_id } };
+      }
+
+      const nextItems = [...state.items];
+      if (newQty.eq(0)) {
+        nextItems.splice(last, 1);
+      } else {
+        nextItems[last] = { ...item!, quantity: newQty.toString() };
+      }
+      
+      return { ...state, items: nextItems, error: null };
+    }
+
+    case 'CLEAR_CART':
+    case 'RESET_CART': {
+      return { ...state, items: [], error: null };
+    }
+
+    default:
+      return state;
+  }
+}
+
 export function usePOSCart() {
-  const [items, setItems] = useState<POSCartItem[]>([]);
+  const [state, dispatch] = useReducer(cartReducer, { items: [], error: null });
+  const { items, error } = state;
+
+  useEffect(() => {
+    if (!error) return;
+
+    switch (error.code) {
+      case "INSUFFICIENT_STOCK":
+        toast.error("Stock insuficiente en la sucursal");
+        break;
+      case "INVALID_QUANTITY":
+        toast.error("La cantidad debe ser mayor que cero");
+        break;
+      case "INVALID_NUMERIC_VALUE":
+        toast.error("Valor numérico inválido");
+        break;
+    }
+  }, [error]);
+
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
   const [cartPulse, setCartPulse] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
@@ -24,80 +202,36 @@ export function usePOSCart() {
   const handleAddItem = useCallback((product: Product, quantity: string | number = "1", getBranchStock: (p: Product) => string) => {
     idempotencyKeyRef.current = null;
     const maxStockStr = getBranchStock(product);
-    const maxStock = new Big(maxStockStr || "0");
-    const qtyToAdd = new Big(quantity);
-
-    setItems((prev) => {
-      const idx = prev.findIndex((i) => i.product_id === product._id);
-      if (idx >= 0) {
-        const item = prev[idx];
-        if (!item) return prev;
-        const newQty = new Big(item.quantity).plus(qtyToAdd);
-        if (newQty.gt(maxStock)) {
-          toast.error("Stock insuficiente en la sucursal");
-          return prev;
-        }
-        return prev.map((item, i) =>
-          i === idx ? { ...item, quantity: newQty.toString() } : item
-        );
-      }
-      
-      if (qtyToAdd.gt(maxStock)) {
-        toast.error("Stock insuficiente en la sucursal");
-        return prev;
-      }
-
-      return [...prev, {
-        product_id: product._id, name: product.name, quantity: qtyToAdd.toString(),
-        unit_price: String(product.price), maxStock: maxStockStr,
-        unit_type: product.unit_type || "unidad",
-      }];
-    });
+    const operationId = crypto.randomUUID();
+    
+    dispatch({ type: 'ADD_ITEM', product, quantity, maxStockStr, operationId });
+    
     setCartPulse(true);
     setTimeout(() => setCartPulse(false), 300);
   }, []);
 
-  const handleQtyChange = (index: number, value: string) => {
+  const handleQtyChange = useCallback((index: number, value: string) => {
     idempotencyKeyRef.current = null;
-    try {
-      const qty = new Big(value || "0");
-      if (qty.lt(0)) return;
-      
-      setItems((prev) => {
-        const item = prev[index];
-        if (!item) return prev;
-        const maxStock = new Big(item.maxStock || "0");
-        if (qty.gt(maxStock)) {
-          toast.error("Stock insuficiente en la sucursal");
-          return prev;
-        }
-        return prev.map((it, i) => i === index ? { ...it, quantity: value } : it);
-      });
-    } catch {
-      if (value !== "") return;
-      setItems((prev) => prev.map((it, i) => i === index ? { ...it, quantity: value } : it));
-    }
-  };
+    dispatch({ type: 'CHANGE_ITEM_QTY', index, quantity: value, operationId: crypto.randomUUID() });
+  }, []);
 
-  const handleRemoveItem = (index: number) => {
+  const handleRemoveItem = useCallback((index: number) => {
     idempotencyKeyRef.current = null;
-    setItems((prev) => prev.filter((_, i) => i !== index));
-  };
+    dispatch({ type: 'REMOVE_ITEM', index });
+  }, []);
 
   const cyclePaymentMethod = useCallback(() => {
     idempotencyKeyRef.current = null;
-    setPaymentMethod((prev) => {
-      const next = PAYMENT_METHODS[(PAYMENT_METHODS.indexOf(prev) + 1) % PAYMENT_METHODS.length] ?? "Efectivo";
-      toast.success(`Método: ${next}`, { duration: 1200, icon: "💳" });
-      return next;
-    });
-  }, []);
+    const next = PAYMENT_METHODS[(PAYMENT_METHODS.indexOf(paymentMethod) + 1) % PAYMENT_METHODS.length] ?? "Efectivo";
+    setPaymentMethod(next);
+    toast.success(`Método: ${next}`, { duration: 1200, icon: "💳" });
+  }, [paymentMethod]);
 
   const clearCart = useCallback(() => {
     if (items.length === 0) return;
     if (window.confirm("¿Vaciar todo el carrito?")) {
       idempotencyKeyRef.current = null;
-      setItems([]);
+      dispatch({ type: 'CLEAR_CART' });
       toast.success("Carrito vaciado", { icon: "🗑️" });
     }
   }, [items.length]);
@@ -105,44 +239,20 @@ export function usePOSCart() {
   const modifyLastItemQty = useCallback((delta: number) => {
     if (items.length === 0) return;
     idempotencyKeyRef.current = null;
-    const last = items.length - 1;
-    setItems((prev) => {
-      const next = [...prev];
-      try {
-        const item = next[last];
-        if (!item) return next;
-        const currentQty = new Big(item.quantity || "0");
-        const newQty = currentQty.plus(delta);
-        const maxStock = new Big(item.maxStock || "0");
-        
-        if (newQty.gt(maxStock)) {
-          toast.error("Stock insuficiente en la sucursal");
-          return prev;
-        }
-
-        if (newQty.lte(0)) { next.splice(last, 1); }
-        else { item.quantity = newQty.toString(); }
-      } catch (e) {
-        console.error("Error modifying quantity", e);
-      }
-      return next;
-    });
-  }, [items]);
+    dispatch({ type: 'MODIFY_LAST_ITEM_QTY', delta, operationId: crypto.randomUUID() });
+  }, [items.length]);
 
   const resetCart = useCallback(() => {
     idempotencyKeyRef.current = null;
-    setItems([]);
+    dispatch({ type: 'RESET_CART' });
     setPaymentMethod("Efectivo");
   }, []);
 
   const currentTotal = useMemo(() => items.reduce((a, i) => {
-    try {
-      const qty = new Big(i.quantity || "0");
-      const price = new Big(i.unit_price || "0");
-      return a + qty.times(price).toNumber();
-    } catch {
-      return a;
-    }
+    const qty = parseBig(i.quantity);
+    const price = parseBig(i.unit_price);
+    if (!qty || !price) return a;
+    return a + qty.times(price).toNumber();
   }, 0), [items]);
 
   return {
