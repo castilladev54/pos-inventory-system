@@ -46,8 +46,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case 'ADD_ITEM': {
       const { product, quantity, maxStockStr, operationId } = action;
-      
-      const maxStock = parseBig(maxStockStr || "0");
+
+      const maxStock = parseBig(maxStockStr);
       const qtyToAdd = parseBig(quantity);
 
       if (!maxStock || !qtyToAdd) {
@@ -55,9 +55,9 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       }
 
       if (qtyToAdd.lte(0)) {
-        return { 
-          ...state, 
-          error: { id: operationId, code: "INVALID_QUANTITY", productId: product._id } 
+        return {
+          ...state,
+          error: { id: operationId, code: "INVALID_QUANTITY", productId: product._id }
         };
       }
 
@@ -76,6 +76,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         const nextItems = state.items.map((it, i) =>
           i === idx ? { ...it, quantity: newQty.toString() } : it
         );
+
         return { ...state, items: nextItems, error: null };
       }
 
@@ -91,11 +92,13 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         maxStock: maxStockStr,
         unit_type: product.unit_type || "unidad",
       };
+
       return { ...state, items: [...state.items, newItem], error: null };
     }
-    
+
     case 'CHANGE_ITEM_QTY': {
       const { index, quantity, operationId } = action;
+
       const item = state.items[index];
       if (!item) return state;
 
@@ -105,6 +108,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       }
 
       const qty = parseBig(quantity);
+
       if (!qty) {
         return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: item.product_id } };
       }
@@ -114,12 +118,22 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       }
 
       const maxStock = parseBig(item.maxStock);
+
       if (!maxStock) {
         return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: item.product_id } };
       }
 
+
       if (qty.gt(maxStock)) {
-        return { ...state, error: { id: operationId, code: "INSUFFICIENT_STOCK", productId: item.product_id } };
+
+        return {
+          ...state,
+          error: {
+            id: operationId,
+            code: "INSUFFICIENT_STOCK",
+            productId: item.product_id,
+          },
+        };
       }
 
       const nextItems = state.items.map((it, i) => i === index ? { ...it, quantity } : it);
@@ -133,21 +147,21 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     case 'MODIFY_LAST_ITEM_QTY': {
       const { delta, operationId } = action;
       if (state.items.length === 0) return state;
-      
+
       const last = state.items.length - 1;
       const item = state.items[last];
-    if (!item) return state;
-      
+      if (!item) return state;
+
       const currentQty = parseBig(item.quantity);
       const maxStock = parseBig(item.maxStock);
       const deltaBig = parseBig(delta);
-      
+
       if (!currentQty || !maxStock || !deltaBig) {
         return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: item.product_id } };
       }
 
       const newQty = currentQty.plus(deltaBig);
-      
+
       if (newQty.lt(0)) {
         return { ...state, error: { id: operationId, code: "INVALID_QUANTITY", productId: item.product_id } };
       }
@@ -162,7 +176,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       } else {
         nextItems[last] = { ...item, quantity: newQty.toString() };
       }
-      
+
       return { ...state, items: nextItems, error: null };
     }
 
@@ -181,10 +195,13 @@ export function usePOSCart() {
   const { items, error } = state;
 
   useEffect(() => {
+
+
     if (!error) return;
 
     switch (error.code) {
       case "INSUFFICIENT_STOCK":
+
         toast.error("Stock insuficiente en la sucursal");
         break;
       case "INVALID_QUANTITY":
@@ -203,17 +220,24 @@ export function usePOSCart() {
   const handleAddItem = useCallback((product: Product, quantity: string | number = "1", getBranchStock: (p: Product) => string) => {
     idempotencyKeyRef.current = null;
     const maxStockStr = getBranchStock(product);
+
     const operationId = crypto.randomUUID();
-    
+
     dispatch({ type: 'ADD_ITEM', product, quantity, maxStockStr, operationId });
-    
+
     setCartPulse(true);
     setTimeout(() => setCartPulse(false), 300);
   }, []);
 
   const handleQtyChange = useCallback((index: number, value: string) => {
     idempotencyKeyRef.current = null;
-    dispatch({ type: 'CHANGE_ITEM_QTY', index, quantity: value, operationId: crypto.randomUUID() });
+
+    dispatch({
+      type: 'CHANGE_ITEM_QTY',
+      index,
+      quantity: value,
+      operationId: crypto.randomUUID(),
+    });
   }, []);
 
   const handleRemoveItem = useCallback((index: number) => {
@@ -249,15 +273,22 @@ export function usePOSCart() {
     setPaymentMethod("Efectivo");
   }, []);
 
-  const currentTotal = useMemo(() => items.reduce((a, i) => {
-    const qty = parseBig(i.quantity);
-    const price = parseBig(i.unit_price);
-    if (!qty || !price) return a;
-    return a + qty.times(price).toNumber();
-  }, 0), [items]);
+  const currentTotal = useMemo(() => {
+
+    return items.reduce((total, item) => {
+
+
+      const qty = parseBig(item.quantity);
+      const price = parseBig(item.unit_price);
+
+      if (!qty || !price) return total;
+
+      return total + qty.times(price).toNumber();
+    }, 0);
+  }, [items]);
 
   return {
-    items, paymentMethod, cartPulse, currentTotal, idempotencyKeyRef,
+    items, error, paymentMethod, cartPulse, currentTotal, idempotencyKeyRef,
     setPaymentMethod: (method: string) => {
       idempotencyKeyRef.current = null;
       setPaymentMethod(method);
