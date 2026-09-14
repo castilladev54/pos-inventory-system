@@ -98,7 +98,7 @@ const CartDrawer = ({
                     <div className="flex-1 mb-3 sm:mb-0">
                       <h5 className="text-white font-medium text-sm sm:text-base line-clamp-1">
                         {item.name}
-                        {item.unit_type && item.unit_type !== 'unidad' ? ` (${item.unit_type})` : ''}
+                        {(item.unit_type ?? "unidad") !== "unidad" ? ` (${item.unit_type})` : ''}
                       </h5>
                       <div className="flex gap-4 items-center mt-1">
                         <span className="text-orange-500 font-bold">{fmtUSD(item.unit_price)}</span>
@@ -139,7 +139,7 @@ const CartDrawer = ({
                       </div>
                       <div className="text-right w-20 sm:w-24 ml-auto">
                         <span className="text-amber-500 font-bold text-base sm:text-lg">
-                          {fmtUSD(itemSubtotal(item))}
+                          {fmtUSD(itemSubtotal({ ...item, unit_type: item.unit_type ?? "unidad" }))}
                         </span>
                       </div>
                       <Button
