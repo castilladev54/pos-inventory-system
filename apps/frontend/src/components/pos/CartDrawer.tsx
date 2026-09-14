@@ -121,8 +121,8 @@ const CartDrawer = ({
                       }`}>
                         <InputText
                           type="number"
-                          min="0.01"
-                          step="0.01"
+                          min={item.unit_type === "unidad" ? "1" : "0.01"}
+                          step={item.unit_type === "unidad" ? "1" : "0.01"}
                           value={item.quantity}
                           onChange={(e) => onQtyChange(index, e.target.value)}
                           aria-label={`Cantidad de ${item.name}`}

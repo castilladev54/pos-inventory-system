@@ -42,6 +42,21 @@ function parseBig(val: string | number | undefined): Big | null {
   }
 }
 
+function validateQuantity(
+  quantity: Big,
+  unitType: UnitType
+): "INVALID_QUANTITY" | null {
+  if (quantity.lte(0)) {
+    return "INVALID_QUANTITY";
+  }
+
+  if (unitType === "unidad" && !quantity.mod(1).eq(0)) {
+    return "INVALID_QUANTITY";
+  }
+
+  return null;
+}
+
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case 'ADD_ITEM': {
@@ -54,10 +69,11 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: product._id } };
       }
 
-      if (qtyToAdd.lte(0)) {
+      const validationError = validateQuantity(qtyToAdd, product.unit_type || "unidad");
+      if (validationError) {
         return {
           ...state,
-          error: { id: operationId, code: "INVALID_QUANTITY", productId: product._id }
+          error: { id: operationId, code: validationError, productId: product._id }
         };
       }
 
@@ -113,8 +129,9 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: item.product_id } };
       }
 
-      if (qty.lt(0)) {
-        return { ...state, error: { id: operationId, code: "INVALID_QUANTITY", productId: item.product_id } };
+      const validationError = validateQuantity(qty, item.unit_type || "unidad");
+      if (validationError) {
+        return { ...state, error: { id: operationId, code: validationError, productId: item.product_id } };
       }
 
       const maxStock = parseBig(item.maxStock);
@@ -164,6 +181,13 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 
       if (newQty.lt(0)) {
         return { ...state, error: { id: operationId, code: "INVALID_QUANTITY", productId: item.product_id } };
+      }
+
+      if (newQty.gt(0)) {
+        const validationError = validateQuantity(newQty, item.unit_type || "unidad");
+        if (validationError) {
+          return { ...state, error: { id: operationId, code: validationError, productId: item.product_id } };
+        }
       }
 
       if (newQty.gt(maxStock)) {
@@ -274,7 +298,6 @@ export function usePOSCart() {
   }, []);
 
   const currentTotal = useMemo(() => {
-
     return items.reduce((total, item) => {
 
 
