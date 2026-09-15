@@ -79,7 +79,26 @@ export const createSaleProcess = async (
       if (!product) {
         throw new Error(`Producto con ID ${item.product_id} no encontrado o no te pertenece.`);
       }
-      const lineTotal = Big(item.quantity).times(Big(item.unit_price));
+
+      // Fase 8: Backend Domain Validation
+      const qty = Big(item.quantity);
+
+      console.log('🔥 SALE DOMAIN VALIDATION', {
+        productId: item.product_id,
+        quantity: item.quantity,
+        unitType: product.unit_type,
+      });
+
+      if (qty.lte(0)) {
+        throw new Error(`La cantidad para el producto ${product.name} debe ser mayor a cero.`);
+      }
+      if (product.unit_type === 'unidad' || product.unit_type === 'unit') {
+        if (!qty.eq(qty.round(0, 0))) { // round mode 0 is ROUND_DOWN
+          throw new Error(`El producto ${product.name} se vende por unidades y no acepta decimales.`);
+        }
+      }
+
+      const lineTotal = qty.times(Big(item.unit_price));
       total_amount = Big(total_amount).plus(lineTotal).toString();
     }
 
@@ -287,7 +306,26 @@ export const updateSaleProcess = async (
       for (const item of items) {
         const product = productsMap.get(item.product_id.toString());
         if (!product) throw new Error(`Producto con ID ${item.product_id} no encontrado o no te pertenece.`);
-        const lineTotal = Big(item.quantity).times(Big(item.unit_price));
+
+        // Fase 8: Backend Domain Validation
+        const qty = Big(item.quantity);
+
+        console.log('🔥 SALE DOMAIN VALIDATION', {
+          productId: item.product_id,
+          quantity: item.quantity,
+          unitType: product.unit_type,
+        });
+
+        if (qty.lte(0)) {
+          throw new Error(`La cantidad para el producto ${product.name} debe ser mayor a cero.`);
+        }
+        if (product.unit_type === 'unidad' || product.unit_type === 'unit') {
+          if (!qty.eq(qty.round(0, 0))) {
+            throw new Error(`El producto ${product.name} se vende por unidades y no acepta decimales.`);
+          }
+        }
+
+        const lineTotal = qty.times(Big(item.unit_price));
         newTotal = Big(newTotal).plus(lineTotal).toString();
       }
 

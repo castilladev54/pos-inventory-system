@@ -41,52 +41,48 @@ function dayRangeVE(offsetDays = 0): { start: Date; end: Date } {
 
 
 export const createSale = async (req: Request, res: Response): Promise<any> => {
+  // Se garantiza existencia previa vía requireBranchHeader
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const branchId = req.branchId!;
+
+  // injectBusinessContext resolvió:
+  //   req.businessOwnerId = ID del dueño del negocio (tenant)
+  //   req.actorId = ID real de quien hizo login (empleado o dueño)
+  const ownerId = req.businessOwnerId;
+  const soldBy = req.actorId;
+
+  // 🔒 Validación cruzada de sucursal para empleados:
+  if (req.userRole === 'employee') {
+    const authorized = req.assignedBranches ?? [];
+    if (!authorized.includes(String(branchId))) {
+      const err: any = new Error('Acceso denegado: No tienes autorización para operar en esta sucursal.');
+      err.status = 403;
+      throw err;
+    }
+  }
+
+  const { items, payment_method, exchange_rate } = req.body;
+
+  // Validación Just-In-Time (JIT) de la tasa de cambio
+  if (exchange_rate != null) {
+    const latestRateDoc = await ExchangeRate.findOne({ customer_id: ownerId }).sort({ date: -1 }).lean();
+    const currentBackendRate = latestRateDoc?.rate ?? null;
+    
+    if (currentBackendRate !== null) {
+      const currentRateNum = Number(currentBackendRate.toString());
+      const incomingRateNum = Number(exchange_rate);
+      // Tolerancia de punto flotante
+      if (Math.abs(currentRateNum - incomingRateNum) > 0.001) {
+        const err: any = new Error('La tasa de cambio ha sido actualizada en el servidor. Por favor, actualiza la caja registradora.');
+        err.status = 409;
+        err.codeString = 'EXCHANGE_RATE_MISMATCH';
+        err.current_rate = currentBackendRate;
+        throw err;
+      }
+    }
+  }
+
   try {
-    const { items, payment_method, exchange_rate } = req.body;
-
-    // Se garantiza existencia previa vía requireBranchHeader
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const branchId = req.branchId!;
-
-    // injectBusinessContext resolvió:
-    //   req.businessOwnerId = ID del dueño del negocio (tenant)
-    //   req.actorId = ID real de quien hizo login (empleado o dueño)
-    const ownerId = req.businessOwnerId;
-    const soldBy = req.actorId;
-
-    // 🔒 Validación cruzada de sucursal para empleados:
-    // El branchId del header x-branch-id es controlado por el cliente.
-    // Verificamos contra req.assignedBranches (fuente de verdad desde DB).
-    if (req.userRole === 'employee') {
-      const authorized = req.assignedBranches ?? [];
-      if (!authorized.includes(String(branchId))) {
-        return res.status(403).json({
-          success: false,
-          message: 'Acceso denegado: No tienes autorización para operar en esta sucursal.',
-        });
-      }
-    }
-
-    // Validación Just-In-Time (JIT) de la tasa de cambio
-    if (exchange_rate != null) {
-      const latestRateDoc = await ExchangeRate.findOne({ customer_id: ownerId }).sort({ date: -1 }).lean();
-      const currentBackendRate = latestRateDoc?.rate ?? null;
-      
-      if (currentBackendRate !== null) {
-        const currentRateNum = Number(currentBackendRate.toString());
-        const incomingRateNum = Number(exchange_rate);
-        // Tolerancia de punto flotante
-        if (Math.abs(currentRateNum - incomingRateNum) > 0.001) {
-          return res.status(409).json({
-            success: false,
-            error: 'EXCHANGE_RATE_MISMATCH',
-            message: 'La tasa de cambio ha sido actualizada en el servidor. Por favor, actualiza la caja registradora.',
-            current_rate: currentBackendRate
-          });
-        }
-      }
-    }
-
     const sale = await withTransactionRetry(() => 
       createSaleProcess(ownerId, soldBy, branchId, items, payment_method, exchange_rate, req.cashShift?._id)
     );
@@ -106,12 +102,13 @@ export const createSale = async (req: Request, res: Response): Promise<any> => {
       message: "Venta registrada exitosamente",
       sale
     };
-
   } catch (error: any) {
     let status = 500;
     if (error.message.includes('Stock insuficiente') || error.message.includes('Freno de emergencia')) status = 400;
     else if (error.message.includes('no encontrado')) status = 404;
-    res.status(status).json({ success: false, message: error.message });
+    
+    error.status = status;
+    throw error;
   }
 };
 
