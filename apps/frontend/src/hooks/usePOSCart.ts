@@ -77,6 +77,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         };
       }
 
+      const canonicalQtyToAdd = qtyToAdd.toString();
+
       const idx = state.items.findIndex((i) => i.product_id === product._id);
       if (idx >= 0) {
         const item = state.items[idx];
@@ -103,7 +105,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       const newItem: POSCartItem = {
         product_id: product._id,
         name: product.name,
-        quantity: qtyToAdd.toString(),
+        quantity: canonicalQtyToAdd,
         unit_price: String(product.price),
         maxStock: maxStockStr,
         unit_type: product.unit_type || "unidad",
@@ -124,6 +126,14 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       }
 
       const qty = parseBig(quantity);
+
+      console.log("🔥 QTY REDUCER", {
+        quantity,
+        parsed: qty?.toString(),
+        unitType: item.unit_type,
+        isPositive: qty?.gt(0),
+        isInteger: qty?.mod(1).eq(0),
+      });
 
       if (!qty) {
         return { ...state, error: { id: operationId, code: "INVALID_NUMERIC_VALUE", productId: item.product_id } };
@@ -153,7 +163,9 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         };
       }
 
-      const nextItems = state.items.map((it, i) => i === index ? { ...it, quantity } : it);
+      const canonicalQty = qty.toString();
+
+      const nextItems = state.items.map((it, i) => i === index ? { ...it, quantity: canonicalQty } : it);
       return { ...state, items: nextItems, error: null };
     }
 
@@ -254,6 +266,8 @@ export function usePOSCart() {
   }, []);
 
   const handleQtyChange = useCallback((index: number, value: string) => {
+    console.log("🔥 QTY INPUT", { index, value });
+
     idempotencyKeyRef.current = null;
 
     dispatch({
