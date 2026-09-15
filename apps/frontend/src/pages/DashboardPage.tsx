@@ -7,6 +7,7 @@ import CategoryManager from '../components/CategoryManager';
 import ProductManager from '../components/ProductManager';
 import PurchaseManager from '../components/PurchaseManager';
 import SalesManager from '../components/SalesManager';
+import SalesHistoryManager from '../components/SalesHistoryManager';
 import AnalyticsManager from '../components/AnalyticsManager';
 import AdminUserCreator from '../components/AdminUserCreator';
 import StaffManager from '../components/StaffManager';
@@ -48,6 +49,13 @@ const DashboardPage = () => {
           <PermissionGuard requiredPermission="pos_access" fallback={<AccessDenied />}>
             <RequireBranchGuard>
               <SalesManager />
+            </RequireBranchGuard>
+          </PermissionGuard>
+        )}
+        {activeTab === 'sales_history' && (
+          <PermissionGuard requiredPermission="pos_access" fallback={<AccessDenied />}>
+            <RequireBranchGuard>
+              <SalesHistoryManager />
             </RequireBranchGuard>
           </PermissionGuard>
         )}

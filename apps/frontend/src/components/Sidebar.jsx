@@ -165,6 +165,14 @@ const Sidebar = ({ isOpen, setIsOpen, activeTab, setActiveTab }) => {
                         Punto de Venta
                       </button>
                     </li>
+                    <li>
+                      <button
+                        onClick={() => setActiveTab("sales_history")}
+                        className={`w-full text-left block py-2 px-3 rounded-lg hover:bg-white/10 text-sm transition-colors ${activeTab === 'sales_history' ? 'bg-white/10 text-orange-400 font-medium' : ''}`}
+                      >
+                        Historial de Ventas
+                      </button>
+                    </li>
                   </PermissionGuard>
                 </ul>
               )}

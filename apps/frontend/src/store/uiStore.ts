@@ -9,6 +9,7 @@ export type DashboardTab =
   | 'products'
   | 'purchases'
   | 'sales'
+  | 'sales_history'
   | 'analytics'
   | 'staff'
   | 'transfers'
