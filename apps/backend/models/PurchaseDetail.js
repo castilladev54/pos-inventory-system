@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { User } from './User.js';
 import { Purchase } from './Purchase.js';
-import { DecimalConfig } from '../utils/decimalConfig.js';
+import { DecimalConfig } from '../utils/decimalConfig.ts';
 import Big from 'big.js';
 
 const purchaseDetailSchema = new mongoose.Schema({

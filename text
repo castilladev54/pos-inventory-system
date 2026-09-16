@@ -1,45 +1,863 @@
-Perfecto, mucho más directo. Aquí tienes todo para Postman:
+FASE 1 — Congelar el dominio
 
+Primero vamos a documentar y revisar las responsabilidades actuales.
+
+Producto
+Product
+ ├── name
+ ├── description
+ ├── barcode
+ ├── price
+ ├── category
+ ├── unit_type
+ ├── max_debt_limit
+ └── user
+
+Product no guarda stock.
+
+Inventario
+Inventory
+ ├── product_id
+ ├── branch_id
+ ├── owner_id
+ ├── quantity
+ └── min_stock_alert
+
+Representa:
+
+cuánto stock existe de un producto en una sucursal.
+
+Movimiento
+StockMovement
+ ├── inventory_id
+ ├── product_id
+ ├── branch_id
+ ├── owner_id
+ ├── type
+ ├── quantity_change
+ ├── previous_quantity
+ ├── new_quantity
+ ├── reference_id
+ ├── created_by
+ └── reason
+
+Representa:
+
+por qué cambió el stock.
+
+Ajuste
+Adjustment
+      ↓
+Inventory
+      ↓
+StockMovement
+Transferencia
+Transfer
+   ├── Inventory origen
+   ├── Inventory destino
+   └── StockMovement
+         ├── TRANSFER_OUT
+         └── TRANSFER_IN
+Creación con stock inicial
+Product
+   +
+Inventory inicial
+   +
+StockMovement INITIAL_INVENTORY
+
+Todo dentro de una única transacción MongoDB.
+
+No vamos a convertir Product en un modelo que almacene stock.
+
+FASE 2 — Contratos compartidos
+
+Antes de tocar servicios, revisamos packages/shared.
+
+El contrato que ya definiste queda:
+
+CreateProductDTO
+
+con:
+
+initial_stock?: string;
+initial_branch_id?: string;
+
+No vamos a cambiarlo a:
+
+initialInventory: {
+  stock: ...
+}
+
+porque ya elegiste el formato plano.
+
+Reglas
+
+initial_stock y initial_branch_id:
+
+0 + branch     ✅
+30.50 + branch ✅
+0.25 + branch  ✅
+stock sin branch ❌
+branch sin stock ❌
+
+Además:
+
+stock < 0       ❌
+unidad + 0.25   ❌
+kg + 0.25       ✅
+litro + 0.25    ✅
+metro + 0.25    ✅
+
+Esto debe quedar definido antes de entrar al service.
+
+FASE 3 — Crear producto + stock inicial
+
+Aquí está uno de los puntos más importantes.
+
+Actualmente createProduct solamente crea:
+
+Product
+
+Vamos a convertirlo conceptualmente en:
+
+POST /api/products
+
+        ↓
+
+createProductWithInitialInventory()
+
+        ↓
+┌─────────────────────────┐
+│ Mongo Transaction        │
+│                          │
+│ 1. validar categoría     │
+│ 2. validar barcode       │
+│ 3. crear Product         │
+│ 4. validar Branch        │
+│ 5. crear Inventory       │
+│ 6. crear StockMovement   │
+│                          │
+└─────────────────────────┘
+        ↓
+      COMMIT
+Muy importante
+
+El service recibe:
+
+ownerId
+actorId
+
+Nunca:
+
+req
+
+Por ejemplo:
+
+type CreateProductWithInitialInventoryParams =
+  CreateProductDTO & {
+    ownerId: BusinessOwnerId;
+    actorId: ActorId;
+  };
+
+Así el service sigue siendo independiente de Express.
+
+FASE 4 — Corregir ProductService
+
+Aquí vamos a solucionar todos los detalles que encontramos.
+
+4.1 Categoría
+
+Validar:
+
+{
+  _id: category,
+  user: ownerId
+}
+
+No simplemente:
+
+{ _id: category }
+
+Esto evita utilizar categorías de otro negocio.
+
+4.2 Barcode
+
+Mantener la validación existente:
+
+barcode + owner
+
+y conservar el índice:
+
+barcode + user
+
+La respuesta debe seguir siendo amigable.
+
+4.3 max_debt_limit
+
+El service debe incluirlo:
+
+new Product({
+  name,
+  description,
+  price,
+  category,
+  unit_type,
+  max_debt_limit,
+  user: ownerId,
+});
+
+Este detalle no lo debemos perder al incorporar el stock inicial.
+
+4.4 Branch
+
+Cuando venga:
+
+initial_branch_id
+
+validamos:
+
+{
+  _id: initial_branch_id,
+  owner_id: ownerId,
+  is_active: true
+}
+
+No basta con verificar que la sucursal exista.
+
+4.5 Stock
+
+Nunca:
+
+Number(initial_stock)
+
+para hacer operaciones monetarias/de inventario.
+
+Usaremos:
+
+Big.js
++
+Decimal128
+
+La cadena:
+
+"30.50"
+
+debe terminar almacenada como Decimal128.
+
+4.6 unidad
+
+Si:
+
+unit_type === "unidad"
+
+entonces:
+
+1       ✅
+2       ✅
+10      ✅
+0       depende de la regla de negocio
+0.25    ❌
+1.5     ❌
+
+Mientras que:
+
+kg      → 0.25 ✅
+litro   → 0.25 ✅
+metro   → 0.25 ✅
+4.7 Inventory inicial
+
+Como el Product acaba de crearse, no necesitamos:
+
+findOneAndUpdate(... upsert: true)
+
+para el primer inventario.
+
+Es más claro:
+
+Product creado
+      ↓
+Inventory creado
+
+Así evitamos esconder un posible problema detrás de un upsert.
+
+FASE 5 — StockMovement inicial
+
+Aquí debemos tomar una decisión importante de diseño.
+
+Actualmente tenemos:
+
+MANUAL_ADJUSTMENT
+
+pero no:
+
+INITIAL_INVENTORY
+
+No agregaría un nuevo enum todavía.
+
+Usaremos:
+
+type: StockMovementType.MANUAL_ADJUSTMENT
+reason: "INITIAL_INVENTORY"
+
+Resultado:
+
+{
+  "type": "MANUAL_ADJUSTMENT",
+  "quantity_change": "30.50",
+  "previous_quantity": "0",
+  "new_quantity": "30.50",
+  "reason": "INITIAL_INVENTORY"
+}
+
+Esto nos permite mantener el modelo actual sin inventar otro tipo de movimiento.
+
+FASE 6 — Revisar Ajustments
+
+Aquí tenemos actualmente dos semánticas diferentes.
+
+executeAdjustment
+
+Hace:
+
+quantity = DELTA
+
+Ejemplo:
+
+stock actual = 10
+
+quantity = +5
+
+nuevo stock = 15
+
+Internamente:
+
+$inc
+createAdjustmentProcess
+
+Hace:
+
+new_stock = ABSOLUTO
+
+Ejemplo:
+
+stock actual = 10
+
+new_stock = 15
+
+nuevo stock = 15
+
+Internamente:
+
+$set
+
+Esto es un problema que debemos resolver antes del frontend.
+
+Decisión recomendada
+
+Para la interfaz de inventario que diseñamos:
+
+Nuevo stock
+
+debe representar:
+
+VALOR ABSOLUTO
+
+Por ejemplo:
+
+Actual: 30.50 kg
+
+Nuevo stock:
+[ 28.00 ]
+
+Resultado:
+-2.50 kg
+
+Y el movimiento registra:
+
+quantity_change = -2.50
+previous_quantity = 30.50
+new_quantity = 28.00
+
+Eso es mucho más fácil de entender para un usuario de POS.
+
+Pero antes de eliminar/modificar executeAdjustment, vamos a buscar todos sus consumidores y determinar cuál se utiliza realmente.
+
+No vamos a borrar una función simplemente porque parece duplicada.
+
+FASE 7 — Ajustes: seguridad multi-tenant
+
+Todo acceso a Inventory deberá respetar:
+
+owner_id
+
+Por ejemplo:
+
+{
+  product_id,
+  branch_id,
+  owner_id
+}
+
+No:
+
+{
+  product_id,
+  branch_id
+}
+
+Esto será especialmente importante en:
+
+Adjustment
+Transfer
+Inventory queries
+Product aggregation
+FASE 8 — Transferencias
+
+Después de estabilizar Adjustment, revisamos Transfer.
+
+La operación debe quedar:
+
+TRANSFER
+
+Branch A
+   │
+   │ -5
+   ▼
+Branch B
+   │
+   │ +5
+   ▼
+
+Dentro de una sola transacción:
+
+1. validar owner
+2. validar branch origen
+3. validar branch destino
+4. validar producto
+5. validar stock origen
+6. descontar origen
+7. aumentar destino
+8. TRANSFER_OUT
+9. TRANSFER_IN
+10. COMMIT
+Seguridad de transferencia
+
+Debemos comprobar explícitamente:
+
+Producto pertenece al owner
+Sucursal origen pertenece al owner
+Sucursal destino pertenece al owner
+
+Y:
+
+sourceBranchId !== destinationBranchId
+
+Además:
+
+cantidad > 0
+
+y:
+
+stock origen >= cantidad
+FASE 9 — Idempotencia
+
+Aquí hay algo que quiero revisar antes de modificar código.
+
+StockMovement ya tiene:
+
+idempotency_key
+
+pero el endpoint de transferencia actualmente no parece utilizar una clave de idempotencia completa.
+
+Esto puede generar:
+
+POST transfer
+      ↓
+transferencia ejecutada
+      ↓
+cliente no recibe respuesta
+      ↓
+cliente reintenta
+      ↓
+segunda transferencia
+
+Tenemos que determinar qué operaciones necesitan idempotencia:
+
+Venta       → sí
+Transfer    → sí
+Adjustment  → sí
+CreateProduct → diseño a decidir
+
+No voy a meter una solución improvisada aquí. Primero revisamos cómo está implementada actualmente en ventas y movimientos.
+
+FASE 10 — Cache
+
+Después de que las operaciones de base de datos sean correctas, revisamos cache.
+
+Regla:
+
+DB transaction
+      ↓
+COMMIT
+      ↓
+invalidate / bump cache
+
+Nunca:
+
+invalidate cache
+      ↓
+commit
+
+porque si la transacción falla, el cache ya fue alterado.
+
+Revisaremos
+products
+product:{id}
+inventory
+adjustments
+stockMovement
+branch products
+POS products
+
+Y construiremos una pequeña matriz:
+
+Operación	Cache afectado
+Crear producto	products
+Crear producto + stock	products + inventory
+Ajustar	products + inventory + movements
+Transferir	products de origen + destino + movements
+Venta	products/inventory
+Compra	products/inventory
+
+No vamos a invalidar claves "por si acaso"; queremos saber exactamente qué lectura queda obsoleta.
+
+FASE 11 — Aggregation de productos
+
+Aquí ya habíamos encontrado un problema importante.
+
+El frontend espera:
+
+Product
+{
+  branchInventories: BranchInventory[];
+  totalStock: string;
+}
+
+pero el backend inicialmente devolvía:
+
+{
+  "total_stock": "12.75"
+}
+
+sin:
+
+branchInventories
+totalStock
+
+La aggregation debe producir:
+
+Product
+   ↓
+$lookup inventories
+   ↓
+branchInventories
+   ↓
+totalStock
+   ↓
+mapper
+   ↓
+Shared Product
+
+Y respetar:
+
+Decimal128 → string
+
+en la frontera de API.
+
+FASE 12 — Tests
+
+Aquí es donde quiero ser bastante estricto.
+
+No pasamos al ProductWorkspaceModal hasta que los tests del backend cubran los escenarios reales.
+
+Primero arreglamos los tests existentes para que no tengan estado compartido.
+
+Actualmente:
+
+afterEach(async () => {
+  await Product.deleteMany({});
+});
+
+deberá contemplar también:
+
+Product
+Inventory
+StockMovement
+
+y cualquier otro modelo que introduzcamos en las pruebas.
+
+Matriz de tests
+Product
+Crear producto
+✓ producto válido
+✓ precio válido
+✓ categoría válida
+✓ unit_type
+✓ barcode
+✓ max_debt_limit
+Validaciones
+✓ name faltante
+✓ price faltante
+✓ categoría inexistente
+✓ categoría de otro owner
+✓ barcode duplicado
+Stock inicial
+✓ producto sin stock inicial
+✓ producto con stock inicial
+✓ 30.50 kg
+✓ 0.25 kg
+✓ stock negativo
+✓ branch inexistente
+✓ branch de otro owner
+✓ branch inactiva
+✓ initial_stock sin branch
+✓ branch sin initial_stock
+✓ unidad con decimal
+✓ unidad con entero
+Transaction rollback
+
+Este test es fundamental.
+
+Ejemplo:
+
+POST product
+   ↓
+Product creado
+   ↓
+Branch inválida
+   ↓
+ERROR
+
+Resultado esperado:
+
+Product count = 0
+Inventory count = 0
+StockMovement count = 0
+
+Es decir:
+
+la transacción realmente funciona.
+
+Adjustment
+✓ aumentar stock
+✓ disminuir stock
+✓ stock decimal
+✓ stock a cero
+✓ producto inexistente
+✓ branch inexistente
+✓ branch de otro owner
+✓ diferencia cero
+✓ movimiento correcto
+✓ previous_quantity correcto
+✓ new_quantity correcto
+✓ quantity_change correcto
+✓ rollback
+Transfer
+✓ transferencia simple
+✓ transferencia decimal
+✓ descuento origen
+✓ incremento destino
+✓ TRANSFER_OUT
+✓ TRANSFER_IN
+✓ stock insuficiente
+✓ branch origen inválida
+✓ branch destino inválida
+✓ branches iguales
+✓ producto de otro owner
+✓ rollback
+
+Y especialmente:
+
+30.50 kg
+    ↓ transferir 0.25
+30.25 kg
+
+No:
+
+30.5
+
+si el contrato requiere representación decimal canónica.
+
+FASE 13 — Tests de aislamiento entre negocios
+
+Esto merece una sección propia.
+
+Creamos:
+
+Owner A
+Owner B
+
+y comprobamos que A jamás pueda:
+
+usar producto de B
+usar branch de B
+ver inventory de B
+ajustar stock de B
+transferir stock de B
+
+Este tipo de test es mucho más importante que probar solamente el 201.
+
+FASE 14 — Tests de precisión decimal
+
+Como tu POS maneja:
+
+kg
+litro
+metro
+
+vamos a probar explícitamente:
+
+0.25
+0.50
+0.75
+1.25
+10.50
+30.50
+
+y operaciones como:
+
+31.00 - 0.50 = 30.50
+30.50 - 0.25 = 30.25
+
+La comparación se hará sobre strings/Decimal128, no con operaciones flotantes de JavaScript.
+
+FASE 15 — Validación final del backend
+
+Antes de tocar React:
+
+pnpm exec tsc --noEmit
+
+y:
+
+pnpm exec vitest apps/backend/tests/product.test.ts
+
+Después todos los tests del backend.
+
+Y finalmente:
+
+typecheck
+lint
+tests
+
+sin:
+
+any
+eslint-disable
+casts innecesarios
+
+cuando sean código nuevo.
+
+FASE 16 — Revisión de API
+
+Al final de backend tendremos que poder documentar claramente:
+
+Crear producto
+POST /api/products
+
+con:
+
+{
+  "name": "Queso Llanero",
+  "price": 5,
+  "category": "...",
+  "unit_type": "kg",
+  "initial_stock": "30.50",
+  "initial_branch_id": "..."
+}
+Ajustar
 POST /api/adjustments
-Headers:
 
-Key	Value
-Authorization	Bearer <tu_token_JWT>
-Content-Type	application/json
-x-branch-id	<ObjectId de tu sucursal>
-Idempotency-Key	adj-001-inicial (opcional, para probar idempotencia)
-Body (JSON) — Carga inicial de stock:
+con una semántica inequívoca.
 
-json
-{
-  "product_id": "<ObjectId de un producto existente>",
-  "quantity": 50,
-  "reason": "INITIAL_INVENTORY",
-  "notes": "Conteo de caja inicial"
-}
-Body (JSON) — Resta por daño:
+Transferir
+POST /api/transfers
 
-json
-{
-  "product_id": "<ObjectId de un producto existente>",
-  "quantity": -3,
-  "reason": "DAMAGE",
-  "notes": "3 unidades rotas en traslado"
-}
-Reasons válidos del enum: INITIAL_INVENTORY | CORRECTION | LOSS | DAMAGE | EXPIRED
+con contrato estable.
 
-GET /api/adjustments?page=1&limit=20
-Headers:
+FASE 17 — Recién aquí: ProductWorkspaceModal
 
-Key	Value
-Authorization	Bearer <tu_token_JWT>
-x-branch-id	<ObjectId de tu sucursal>
-Pruebas a ejecutar en secuencia:
-Carga inicial → esperas 201 con previous_quantity: "0" y new_quantity: "50"
-Repetir la misma con el mismo Idempotency-Key → esperas 409 Conflict
-Enviar un product_id falso (ObjectId válido pero inexistente) → esperas 404
-Enviar quantity: 0 → esperas 400
-GET → esperas ver el historial con el ajuste creado en paso 1
-Esto te va a revelar inmediatamente si el servicio funciona o qué error exacto devuelve el 500. Cuando veas la respuesta del Postman, pégamela y la arreglamos al instante.
+Cuando todo lo anterior esté verde, entonces sí:
 
-7:47 AM
+ProductWorkspaceModal
+│
+├── ProductForm
+│
+├── InventoryOverview
+│
+├── AdjustmentForm
+│
+└── TransferForm
+
+Y el frontend no tendrá que inventar lógica.
+
+El modal simplemente consumirá contratos que ya funcionan:
+
+CREATE PRODUCT
+       ↓
+PRODUCT + INITIAL INVENTORY
+
+ADJUST
+       ↓
+NEW STOCK
+
+TRANSFER
+       ↓
+SOURCE → DESTINATION
+Orden exacto de trabajo
+
+Yo lo haría en estos 10 pasos concretos:
+
+01. Revisar todos los consumidores de Product/Inventory/Adjustment/Transfer
+        ↓
+02. Cerrar schemas de shared
+        ↓
+03. Corregir createProduct + initial inventory
+        ↓
+04. Corregir semántica de Adjustment
+        ↓
+05. Revisar/hardening de Transfer
+        ↓
+06. Revisar aggregation Product
+        ↓
+07. Revisar cache
+        ↓
+08. Construir matriz completa de tests
+        ↓
+09. Ejecutar typecheck + tests + lint
+        ↓
+10. Solo entonces ProductWorkspaceModal
+Y una regla importante
+
+No vamos a modificar 20 archivos de golpe.
+
+En cada paso:
+
+leer código actual
+      ↓
+identificar problema
+      ↓
+decidir contrato
+      ↓
+modificar
+      ↓
+test
+      ↓
+continuar
+
+Así, si algo falla, sabemos exactamente qué cambio lo produjo.
+
+Primer paso
+
+Yo empezaría ahora por una auditoría del backend, antes de escribir código: localizar exactamente Product, Inventory, StockMovement, Adjustment, Transfer, sus controllers/services/routes, cache y tests, y hacer un mapa de dependencias.
+
+Después de esa auditoría podemos empezar por shared → Product → Inventory inicial, sin tocar todavía ProductWorkspaceModal.

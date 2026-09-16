@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { DecimalConfig } from '../utils/decimalConfig.js';
+import { DecimalConfig } from '../utils/decimalConfig.ts';
 
 const saleDetailSchema = new mongoose.Schema({
     sale_id: {

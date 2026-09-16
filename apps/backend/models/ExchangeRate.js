@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { DecimalConfig } from '../utils/decimalConfig.js';
+import { DecimalConfig } from '../utils/decimalConfig.ts';
 
 const exchangeRateSchema = new mongoose.Schema({
   customer_id: {

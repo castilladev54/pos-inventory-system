@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { DecimalConfig } from '../utils/decimalConfig.js';
+import { DecimalConfig } from '../utils/decimalConfig.ts';
 
 const supplierPaymentSchema = new mongoose.Schema({
   purchase_id: {
