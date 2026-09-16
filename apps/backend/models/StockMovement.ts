@@ -7,7 +7,8 @@ export enum StockMovementType {
   MANUAL_ADJUSTMENT = 'MANUAL_ADJUSTMENT',
   TRANSFER_IN = 'TRANSFER_IN',
   TRANSFER_OUT = 'TRANSFER_OUT',
-  RETURN = 'RETURN'
+  RETURN = 'RETURN',
+  INITIAL_INVENTORY = 'INITIAL_INVENTORY'
 }
 
 export interface IStockMovement extends Document {

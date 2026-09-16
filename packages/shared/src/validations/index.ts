@@ -85,6 +85,8 @@ export const createProductBodySchema = z.object({
   unit_type: z.enum(['unidad', 'kg', 'litro', 'metro'] as const).optional(),
   category: z.string().regex(OBJECT_ID_REGEX, 'Invalid Category ID format'),
   max_debt_limit: numericString.optional(),
+  initial_stock: numericString.optional(),
+  branch_id: z.string().regex(OBJECT_ID_REGEX, 'Invalid Branch ID format').optional(),
 });
 export type CreateProductDTO = z.infer<typeof createProductBodySchema>;
 

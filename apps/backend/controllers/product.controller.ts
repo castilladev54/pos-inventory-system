@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import { Request, Response } from 'express';
 import { Product } from '../models/Product.js';
 import { Category } from '../models/Category.js';
+import { Inventory } from '../models/Inventory.js';
+import { StockMovement, StockMovementType } from '../models/StockMovement.js';
 import { invalidateCache, getOrSetCache, getCacheVersion, bumpCacheVersion, buildPaginatedKey, getBranchCacheVersion } from '../lib/redis.js';
 import { createAdjustmentProcess } from '../services/adjustment.service.js';
 import { ProductId } from '../types/brands.js';
@@ -12,7 +14,7 @@ import type {
 
 
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
-  const { name, description, price, category, unit_type, barcode } = req.body;
+  const { name, description, price, category, unit_type, barcode, initial_stock, branch_id } = req.body;
 
   try {
     // Verificar si la categoría existe y pertenece al usuario
@@ -37,17 +39,79 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    // Creación pura de catálogo — sin transacción, sin stock, sin BranchInventory.
-    // El inventario se inicializa lazily mediante la primera venta, compra o ajuste (upsert).
-    const product = new Product({
-      name, description, price,
-      category, unit_type,
-      ...(barcode ? { barcode } : {}),
-      user: req.businessOwnerId
-    });
-    await product.save();
-    await bumpCacheVersion('products', req.businessOwnerId);
-    res.status(201).json({ success: true, product });
+    const hasInitialStock = initial_stock !== undefined && Number(initial_stock) > 0;
+    
+    if (hasInitialStock && !branch_id) {
+      res.status(400).json({
+        success: false,
+        message: "Se requiere especificar la sucursal (branch_id) al inicializar el producto con stock."
+      });
+      return;
+    }
+
+    if (!hasInitialStock) {
+      // Creación pura de catálogo — sin transacción, sin stock, sin BranchInventory.
+      // El inventario se inicializa lazily mediante la primera venta, compra o ajuste (upsert).
+      const product = new Product({
+        name, description, price,
+        category, unit_type,
+        ...(barcode ? { barcode } : {}),
+        user: req.businessOwnerId
+      });
+      await product.save();
+      await bumpCacheVersion('products', req.businessOwnerId);
+      res.status(201).json({ success: true, product });
+      return;
+    }
+
+    // Creación con stock inicial usando transacción
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const product = new Product({
+        name, description, price,
+        category, unit_type,
+        ...(barcode ? { barcode } : {}),
+        user: req.businessOwnerId
+      });
+      await product.save({ session });
+
+      const decimalQuantity = mongoose.Types.Decimal128.fromString(String(initial_stock));
+      
+      const inventory = new Inventory({
+        product_id: product._id,
+        branch_id: branch_id,
+        owner_id: req.businessOwnerId,
+        quantity: decimalQuantity,
+        min_stock_alert: mongoose.Types.Decimal128.fromString('0')
+      });
+      await inventory.save({ session });
+
+      const stockMovement = new StockMovement({
+        inventory_id: inventory._id,
+        product_id: product._id,
+        branch_id: branch_id,
+        owner_id: req.businessOwnerId,
+        type: StockMovementType.INITIAL_INVENTORY,
+        quantity_change: decimalQuantity,
+        previous_quantity: mongoose.Types.Decimal128.fromString('0'),
+        new_quantity: decimalQuantity,
+        created_by: req.actorId || req.businessOwnerId,
+        reason: 'Inventario inicial al crear el producto'
+      });
+      await stockMovement.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      await bumpCacheVersion('products', req.businessOwnerId);
+      res.status(201).json({ success: true, product });
+    } catch (innerError) {
+      await session.abortTransaction();
+      session.endSession();
+      throw innerError;
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error interno del servidor';
     res.status(500).json({ success: false, message });
