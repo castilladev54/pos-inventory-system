@@ -40,7 +40,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     }
 
     const hasInitialStock = initial_stock !== undefined && Number(initial_stock) > 0;
-    
+
     if (hasInitialStock && !branch_id) {
       res.status(400).json({
         success: false,
@@ -78,7 +78,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       await product.save({ session });
 
       const decimalQuantity = mongoose.Types.Decimal128.fromString(String(initial_stock));
-      
+
       const inventory = new Inventory({
         product_id: product._id,
         branch_id: branch_id,
@@ -203,7 +203,17 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
             localField: "category",
             foreignField: "_id",
             pipeline: [
-              { $project: { _id: 1, name: 1, user: 1 } },
+              {
+                $project: {
+                  _id: 1,
+                  name: 1,
+                  user: 1,
+                  description: 1,
+                  createdAt: 1,
+                  updatedAt: 1,
+                  __v: 1,
+                }
+              },
             ],
             as: "category",
           }

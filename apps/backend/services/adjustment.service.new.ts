@@ -74,7 +74,7 @@ export const executeAdjustment = async ({
           product_id: product_id,
           branch_id: targetBranchId,
           owner_id: ownerId,
-          type: StockMovementType.ADJUSTMENT,
+          type: StockMovementType.MANUAL_ADJUSTMENT,
           quantity_change: stringQty,
           previous_quantity: previousQuantity,
           new_quantity: newQuantity,

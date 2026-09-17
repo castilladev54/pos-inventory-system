@@ -30,12 +30,16 @@ export interface ProductAggregationResult {
   price: mongoose.Types.Decimal128;
 
   category:
-    | {
-        _id: Types.ObjectId;
-        name: string;
-        user: Types.ObjectId;
-      }
-    | null;
+  | {
+    _id: Types.ObjectId;
+    name: string;
+    user: Types.ObjectId;
+    description: string;
+    createdAt: Date;
+    updatedAt: Date;
+    __v: number;
+  }
+  | null;
 
   unit_type: "unidad" | "kg" | "litro" | "metro";
 

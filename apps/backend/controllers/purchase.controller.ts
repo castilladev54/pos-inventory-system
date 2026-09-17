@@ -28,13 +28,20 @@ export class PurchaseController {
         const currentBackendRate = latestRateDoc?.rate ?? null;
         
         if (currentBackendRate !== null) {
-          // Tolerancia de punto flotante
-          if (Math.abs(parseFloat(currentBackendRate) - parseFloat(payload.exchange_rate)) > 0.001) {
+          const currentBackendRateString = currentBackendRate.toString();
+
+          if (
+            Math.abs(
+              parseFloat(currentBackendRateString) -
+              parseFloat(payload.exchange_rate)
+            ) > 0.001
+          ) {
             res.status(409).json({
               success: false,
               error: 'EXCHANGE_RATE_MISMATCH',
-              message: 'La tasa de cambio ha sido actualizada en el servidor. Por favor, actualiza la caja registradora.',
-              current_rate: currentBackendRate
+              message:
+                'La tasa de cambio ha sido actualizada en el servidor. Por favor, actualiza la caja registradora.',
+              current_rate: currentBackendRateString,
             });
             return;
           }
@@ -159,6 +166,15 @@ export class PurchaseController {
   public getPurchaseById = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
+
+      if (typeof id !== 'string') {
+        res.status(400).json({
+          success: false,
+          message: 'El ID de la compra es requerido.',
+        });
+        return;
+      }
+
       const ownerId = req.businessOwnerId as BusinessOwnerId;
       const data = await this.purchaseService.fetchPurchaseById(id, ownerId);
 
@@ -180,6 +196,15 @@ export class PurchaseController {
   public payPurchase = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
+
+      if (typeof id !== 'string') {
+        res.status(400).json({
+          success: false,
+          message: 'El ID de la compra es requerido.',
+        });
+        return;
+      }
+
       const { amount } = req.body;
       const ownerId = req.businessOwnerId as BusinessOwnerId;
       

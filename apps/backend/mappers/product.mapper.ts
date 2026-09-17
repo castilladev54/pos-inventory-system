@@ -59,6 +59,10 @@ function toCategoryDTO(
     _id: objectIdToString(raw._id, "category._id") as CategoryId,
     name: raw.name,
     user: objectIdToString(raw.user, "category.user") as BusinessOwnerId,
+    description: raw.description,
+    createdAt: dateToISOString(raw.createdAt, "category.createdAt"),
+    updatedAt: dateToISOString(raw.updatedAt, "category.updatedAt"),
+    __v: raw.__v,
   };
 }
 
