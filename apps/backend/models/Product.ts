@@ -1,19 +1,17 @@
-import { Schema, model, Document } from "mongoose";
-import { BusinessOwnerId } from "../types/brands.js";
+import mongoose, { Schema, model, Document, Types } from "mongoose";
+import { BusinessOwnerId, CategoryId, ProductId } from "../types/brands.js";
 import { DecimalConfig, DecimalOptionalConfig } from "../utils/decimalConfig.js";
 
 export interface IProduct extends Document {
+  _id: ProductId;
   name: string;
   description?: string;
   barcode?: string;
-  price: string;
-  category: Schema.Types.ObjectId;
+  price: mongoose.Types.Decimal128;
+  category: CategoryId;
   unit_type: "unidad" | "kg" | "litro" | "metro";
   user: BusinessOwnerId; // Inquilino / Dueño del negocio
-  max_debt_limit?: string | null; // Override del límite de deuda
-
-  // Virtual
-  totalStock?: number;
+  max_debt_limit?: mongoose.Types.Decimal128 | null; // Override del límite de deuda
 }
 
 const productSchema = new Schema<IProduct>(
@@ -29,7 +27,7 @@ const productSchema = new Schema<IProduct>(
       type: String,
       trim: true,
     },
-    price: DecimalConfig as any,
+    price: DecimalConfig,
     // El campo stock global ha sido eliminado
     category: {
       type: Schema.Types.ObjectId,
@@ -56,20 +54,6 @@ const productSchema = new Schema<IProduct>(
   }
 );
 
-// Relación virtual con Inventory
-productSchema.virtual('inventories', {
-  ref: 'Inventory',
-  localField: '_id',
-  foreignField: 'product_id'
-});
-
-// Virtual para el stock consolidado (requiere `.populate('inventories')`)
-productSchema.virtual("totalStock").get(function (this: any) {
-  if (!this.inventories) {
-    return 0;
-  }
-  return this.inventories.reduce((acc: number, curr: any) => acc + (curr.quantity || 0), 0);
-});
 
 productSchema.index({ barcode: 1, user: 1 }, { unique: true, sparse: true });
 productSchema.index({ user: 1, createdAt: -1 });

@@ -1,7 +1,8 @@
 import { Schema, model, Document } from "mongoose";
-import { BusinessOwnerId } from "../types/brands.js";
+import { BusinessOwnerId, BranchId } from "../types/brands.js";
 
 export interface IBranch extends Document {
+  _id: BranchId;
   name: string;
   address: string;
   phone?: string;
@@ -23,5 +24,8 @@ const branchSchema = new Schema<IBranch>(
     timestamps: true,
   }
 );
+
+// Índice para búsquedas por dueño del negocio (tenant) y ramas activas
+branchSchema.index({ owner_id: 1, is_active: -1 });
 
 export const Branch = model<IBranch>("Branch", branchSchema);

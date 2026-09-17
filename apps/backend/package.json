@@ -39,7 +39,6 @@
     "@types/big.js": "^7.0.0",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/mongoose": "^5.11.97",
     "@types/node": "^26.0.1",
     "mongodb-memory-server": "^11.0.1",
     "nodemon": "^3.1.14",
