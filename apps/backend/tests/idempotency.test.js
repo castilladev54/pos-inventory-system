@@ -33,8 +33,8 @@ vi.mock('../lib/redis.js', () => ({
     }),
   },
   getOrSetCache: vi.fn(async (_key, fn) => ({ data: await fn(), fromCache: false })),
-  invalidateCache: vi.fn(async () => {}),
-  bumpCacheVersion: vi.fn(async () => {}),
+  invalidateCache: vi.fn(async () => { }),
+  bumpCacheVersion: vi.fn(async () => { }),
   getCacheVersion: vi.fn(async () => 0),
   buildPaginatedKey: vi.fn((_p, _v, _pg, _l, uid) => `mock:${uid}`),
 }));
@@ -55,7 +55,7 @@ let mongoReplSet;
 beforeAll(async () => {
   mongoReplSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   const mongoUri = mongoReplSet.getUri();
-  
+
   if (mongoose.connection.readyState !== 0) {
     await mongoose.disconnect();
   }
@@ -85,7 +85,7 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
   let categoryId;
   let productId;
   let branchId;
-  
+
   beforeAll(async () => {
     const testEmail = `idem${Date.now()}@example.com`;
     const hashedPassword = await bcryptjs.hash('password123', 10);
@@ -96,7 +96,7 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
       role: 'admin'
     });
     userId = user._id.toString();
-    
+
     authHeaders = getAuthHeadersForUser(user._id, user.role);
 
     const category = await Category.create({ name: 'Tech', user: userId });
@@ -115,14 +115,14 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
     const product = await Product.create({
       name: 'Monitor',
       price: 200,
-      unit_type: 'unit',
+      unit_type: 'unidad',
       category: categoryId,
       user: userId
     });
     productId = product._id.toString();
 
-    await Inventory.create({ 
-      owner_id: userId, 
+    await Inventory.create({
+      owner_id: userId,
       product_id: product._id,
       branch_id: branchId,
       quantity: 10,

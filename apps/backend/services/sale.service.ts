@@ -92,7 +92,7 @@ export const createSaleProcess = async (
       if (qty.lte(0)) {
         throw new Error(`La cantidad para el producto ${product.name} debe ser mayor a cero.`);
       }
-      if (product.unit_type === 'unidad' || product.unit_type === 'unit') {
+      if (product.unit_type === 'unidad') {
         if (!qty.eq(qty.round(0, 0))) { // round mode 0 is ROUND_DOWN
           throw new Error(`El producto ${product.name} se vende por unidades y no acepta decimales.`);
         }
@@ -110,9 +110,9 @@ export const createSaleProcess = async (
       const product = productsMap.get(item.product_id.toString())!;
       const qtyDecimal = mongoose.Types.Decimal128.fromString(item.quantity);
       const negQtyDecimal = mongoose.Types.Decimal128.fromString(Big(item.quantity).times(-1).toString());
-      
+
       // TODO: Ajustar según tu regla de dominio real
-      const allowNegativeStock = true; 
+      const allowNegativeStock = true;
 
       const preInventory = await Inventory.findOne({ branch_id: branchId, product_id: item.product_id, owner_id: businessOwnerId }).session(session);
       const previousQuantity = preInventory?.quantity ?? mongoose.Types.Decimal128.fromString('0');
@@ -319,7 +319,7 @@ export const updateSaleProcess = async (
         if (qty.lte(0)) {
           throw new Error(`La cantidad para el producto ${product.name} debe ser mayor a cero.`);
         }
-        if (product.unit_type === 'unidad' || product.unit_type === 'unit') {
+        if (product.unit_type === 'unidad') {
           if (!qty.eq(qty.round(0, 0))) {
             throw new Error(`El producto ${product.name} se vende por unidades y no acepta decimales.`);
           }
@@ -334,7 +334,7 @@ export const updateSaleProcess = async (
         const product = productsMap.get(item.product_id.toString())!;
         const qtyDecimal = mongoose.Types.Decimal128.fromString(item.quantity);
         const negQtyDecimal = mongoose.Types.Decimal128.fromString(Big(item.quantity).times(-1).toString());
-        
+
         // TODO: Ajustar según tu regla de dominio real
         const allowNegativeStock = true;
 
