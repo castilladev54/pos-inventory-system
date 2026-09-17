@@ -3,6 +3,7 @@ import Big from 'big.js';
 import { Branch } from '../models/Branch.js';
 import { Inventory } from '../models/Inventory.js';
 import { StockMovement, StockMovementType } from '../models/StockMovement.js';
+import { Product } from '../models/Product.js';
 import { AppError } from '../lib/error.js';
 
 interface TransferItem {
@@ -46,6 +47,12 @@ export const transferStockBetweenBranches = async ({
       throw new AppError(400, `La sucursal de origen y destino no pueden ser la misma.`);
     }
 
+    const productIds = items.map(i => i.product_id);
+    const products = await Product.find({ _id: { $in: productIds }, user: businessOwnerId }).session(session).lean();
+    if (products.length !== items.length) {
+      throw new AppError(400, `Uno o más productos a transferir no fueron encontrados o no pertenecen a su negocio.`);
+    }
+
     // 2. Procesar cada item atómicamente
     for (const item of items) {
       const { product_id, quantity } = item;
@@ -62,6 +69,7 @@ export const transferStockBetweenBranches = async ({
         {
           branch_id: sourceBranchId,
           product_id: product_id,
+          owner_id: businessOwnerId,
           quantity: { $gte: decimalQuantity }
         },
         {
@@ -95,10 +103,11 @@ export const transferStockBetweenBranches = async ({
       }], { session });
 
       // Sumar stock en la sucursal de destino atómicamente
-      const destResultRaw = await Inventory.findOneAndUpdate(
+      const destResult = await Inventory.findOneAndUpdate(
         {
           branch_id: destinationBranchId,
-          product_id: product_id
+          product_id: product_id,
+          owner_id: businessOwnerId
         },
         {
           $inc: { quantity: decimalQuantity },
@@ -109,36 +118,18 @@ export const transferStockBetweenBranches = async ({
         },
         {
           upsert: true,
-          new: false,
-          session,
-          rawResult: true
+          new: true,
+          session
         }
       );
-
-      // Bypass estricto de TS para el objeto nativo ModifyResult de MongoDB
-      const destResult = destResultRaw as unknown as {
-        value: { _id: mongoose.Types.ObjectId; quantity: mongoose.Types.Decimal128 } | null;
-        lastErrorObject?: { upserted?: mongoose.Types.ObjectId };
-      };
 
       if (!destResult) {
         throw new AppError(500, 'Fallo crítico en la comunicación con la base de datos durante el upsert.');
       }
 
-      let destInventoryId;
-      let previousDestQuantity = "0";
-
-      if (destResult.value) {
-        destInventoryId = destResult.value._id;
-        previousDestQuantity = destResult.value.quantity.toString();
-      } else {
-        destInventoryId = destResult.lastErrorObject?.upserted;
-        if (!destInventoryId) {
-          throw new AppError(500, 'Fallo crítico recuperando ID del nuevo inventario destino.');
-        }
-      }
-
-      const newDestQuantity = Big(previousDestQuantity).plus(quantity).toString();
+      const destInventoryId = destResult._id;
+      const newDestQuantity = destResult.quantity.toString();
+      const previousDestQuantity = Big(newDestQuantity).minus(quantity).toString();
 
       // Registrar Kardex de entrada
       await StockMovement.create([{

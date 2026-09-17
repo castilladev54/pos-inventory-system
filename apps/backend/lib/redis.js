@@ -1,4 +1,4 @@
-c// ⚠️ DEBE ser el primer import: carga .env antes que cualquier otro módulo
+// ⚠️ DEBE ser el primer import: carga .env antes que cualquier otro módulo
 import "dotenv/config";
 
 import { Redis } from "@upstash/redis";

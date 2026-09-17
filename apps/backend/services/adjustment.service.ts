@@ -41,7 +41,8 @@ export const executeAdjustment = async ({
     const updatedInventory = await Inventory.findOneAndUpdate(
       {
         branch_id: targetBranchId,
-        product_id: product_id
+        product_id: product_id,
+        owner_id: ownerId,
       },
       {
         $inc: { quantity: decimalQuantity },
@@ -62,7 +63,7 @@ export const executeAdjustment = async ({
 
     const inventoryId = updatedInventory._id;
     const newQuantity = updatedInventory.quantity.toString();
-    
+
     // 2. Unificamos la fuente de verdad: usamos el valor exacto 
     // que Mongoose procesó como Decimal128, previniendo discrepancias.
     const appliedQuantity = decimalQuantity.toString();
@@ -116,7 +117,7 @@ export const fetchAdjustments = async (
   skip = 0,
   limit = 0
 ) => {
-  const query = StockMovement.find({ 
+  const query = StockMovement.find({
     owner_id: businessOwnerId,
     type: StockMovementType.MANUAL_ADJUSTMENT
   })
@@ -141,7 +142,7 @@ export const fetchAdjustments = async (
 // ─── Contar Ajustes ───────────────────────────────────────────────────────────
 
 export const fetchAdjustmentsCount = async (businessOwnerId: BusinessOwnerId | string) => {
-  return StockMovement.countDocuments({ 
+  return StockMovement.countDocuments({
     owner_id: businessOwnerId,
     type: StockMovementType.MANUAL_ADJUSTMENT
   });

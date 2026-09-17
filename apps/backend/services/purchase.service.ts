@@ -63,6 +63,9 @@ export class PurchaseService {
         if (!productsMap.has(item.product_id.toString())) {
           throw new Error(`Producto con ID ${item.product_id} no encontrado o no te pertenece.`);
         }
+        if (Big(item.quantity).lte(0)) {
+          throw new Error(`La cantidad para el producto ${productsMap.get(item.product_id.toString())!.name} debe ser mayor a cero.`);
+        }
         const lineTotal = Big(item.quantity).times(Big(item.unit_cost));
         total_cost = Big(total_cost).plus(lineTotal).toString();
       }
