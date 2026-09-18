@@ -34,8 +34,8 @@ function dayRangeVE(offsetDays = 0): { start: Date; end: Date } {
   const y = nowVE.getUTCFullYear();
   const m = nowVE.getUTCMonth();
   const d = nowVE.getUTCDate() + offsetDays;
-  const start = new Date(Date.UTC(y, m, d,  0,  0,  0,   0) + VE_OFFSET_MS);
-  const end   = new Date(Date.UTC(y, m, d, 23, 59, 59, 999) + VE_OFFSET_MS);
+  const start = new Date(Date.UTC(y, m, d, 0, 0, 0, 0) + VE_OFFSET_MS);
+  const end = new Date(Date.UTC(y, m, d, 23, 59, 59, 999) + VE_OFFSET_MS);
   return { start, end };
 }
 
@@ -67,7 +67,7 @@ export const createSale = async (req: Request, res: Response): Promise<any> => {
   if (exchange_rate != null) {
     const latestRateDoc = await ExchangeRate.findOne({ customer_id: ownerId }).sort({ date: -1 }).lean();
     const currentBackendRate = latestRateDoc?.rate ?? null;
-    
+
     if (currentBackendRate !== null) {
       const currentRateNum = Number(currentBackendRate.toString());
       const incomingRateNum = Number(exchange_rate);
@@ -83,8 +83,17 @@ export const createSale = async (req: Request, res: Response): Promise<any> => {
   }
 
   try {
-    const sale = await withTransactionRetry(() => 
-      createSaleProcess(ownerId, soldBy, branchId, items, payment_method, exchange_rate, req.cashShift?._id)
+    const sale = await withTransactionRetry((session) =>
+      createSaleProcess(
+        ownerId,
+        soldBy,
+        branchId,
+        items,
+        payment_method,
+        exchange_rate,
+        req.cashShift?._id,
+        session
+      )
     );
 
     // Invalidar caché paginada de ventas y productos
@@ -106,7 +115,7 @@ export const createSale = async (req: Request, res: Response): Promise<any> => {
     let status = 500;
     if (error.message.includes('Stock insuficiente') || error.message.includes('Freno de emergencia')) status = 400;
     else if (error.message.includes('no encontrado')) status = 404;
-    
+
     error.status = status;
     throw error;
   }
@@ -124,7 +133,7 @@ export const getSales = async (req: Request, res: Response): Promise<any> => {
 
     // ── Filtro de sucursal (Validación Estricta Fail-Closed) ────────────────
     let branchIdFilter: string | null = null;
-    
+
     if (isEmployee) {
       // 1. Bloqueo por defecto: Si no hay sucursales asignadas en DB, acceso denegado.
       if (!req.assignedBranches || req.assignedBranches.length === 0) {
@@ -177,16 +186,16 @@ export const getSales = async (req: Request, res: Response): Promise<any> => {
 
       } else if (dateFilterParam === '7days') {
         const { start } = dayRangeVE(-6);
-        const { end }   = dayRangeVE(0);
+        const { end } = dayRangeVE(0);
         dateFilter = { $gte: start, $lte: end };
 
       } else if (dateFilterParam === '30days') {
         const { start } = dayRangeVE(-29);
-        const { end }   = dayRangeVE(0);
+        const { end } = dayRangeVE(0);
         dateFilter = { $gte: start, $lte: end };
 
       } else if (dateFilterParam === 'month') {
-        const nowVE   = new Date(Date.now() - VE_OFFSET_MS);
+        const nowVE = new Date(Date.now() - VE_OFFSET_MS);
         const firstDay = new Date(Date.UTC(nowVE.getUTCFullYear(), nowVE.getUTCMonth(), 1, 0, 0, 0, 0) + VE_OFFSET_MS);
         const { end } = dayRangeVE(0);
         dateFilter = { $gte: firstDay, $lte: end };
@@ -333,7 +342,7 @@ export const getSaleById = async (req: Request, res: Response): Promise<void> =>
 export const cancelSale = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    
+
     // Restricción estricta: Los empleados no pueden anular ventas
     if (req.userRole === 'employee') {
       res.status(403).json({ success: false, message: 'Los empleados no tienen permisos para anular ventas.' });
@@ -342,7 +351,7 @@ export const cancelSale = async (req: Request, res: Response): Promise<void> => 
 
     const ownerId = req.businessOwnerId;
 
-    const cancelledSale = await withTransactionRetry(() => 
+    const cancelledSale = await withTransactionRetry(() =>
       cancelSaleProcess(id as string, ownerId)
     );
 
@@ -376,7 +385,7 @@ export const updateSale = async (req: Request, res: Response): Promise<void> => 
     const ownerId = req.businessOwnerId;
 
     // El servicio transaccional maneja stock, SaleDetails y campos simples en una sola sesión ACID
-    const updatedSale = await withTransactionRetry(() => 
+    const updatedSale = await withTransactionRetry(() =>
       updateSaleProcess(id as string, ownerId, { items, payment_method })
     );
 

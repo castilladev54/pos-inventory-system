@@ -56,6 +56,7 @@ vi.mock('../lib/redis.js', () => {
     },
     getOrSetCache: vi.fn(async (_key, fn) => ({ data: await fn(), fromCache: false })),
     invalidateCache: vi.fn(async () => { }),
+    bumpBranchCacheVersion: vi.fn(async () => { }),
     bumpCacheVersion: vi.fn(async () => { }),
     getCacheVersion: vi.fn(async () => 0),
     buildPaginatedKey: vi.fn((_p, _v, _pg, _l, uid) => `mock:${uid}`),
@@ -223,8 +224,8 @@ describe('Casos de Borde Críticos y Seguridad', () => {
         branch_id: activeBranchId
       });
 
-      expect(branchInventory.quantity).toBe(5 - successCount * 2);
-      expect(branchInventory.quantity).toBeGreaterThanOrEqual(0);
+      expect(Number(branchInventory.quantity.toString())).toBe(5 - successCount * 2);
+      expect(Number(branchInventory.quantity.toString())).toBeGreaterThanOrEqual(0);
     });
   });
 

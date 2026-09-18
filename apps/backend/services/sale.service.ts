@@ -45,13 +45,10 @@ export const createSaleProcess = async (
   branchId: BranchId,
   items: SaleItemInput[],
   payment_method: PaymentMethod,
-  exchange_rate: string | null = null,
-  shiftId?: import('mongoose').Types.ObjectId
+  exchange_rate: string | null,
+  shiftId: mongoose.Types.ObjectId | undefined,
+  session: mongoose.ClientSession
 ) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
     // 0. Validar que la sucursal existe y está activa
     const branch = await Branch.findOne({
       _id: branchId,
@@ -112,7 +109,7 @@ export const createSaleProcess = async (
       const negQtyDecimal = mongoose.Types.Decimal128.fromString(Big(item.quantity).times(-1).toString());
 
       // TODO: Ajustar según tu regla de dominio real
-      const allowNegativeStock = true;
+      const allowNegativeStock = false;
 
       const preInventory = await Inventory.findOne({ branch_id: branchId, product_id: item.product_id, owner_id: businessOwnerId }).session(session);
       const previousQuantity = preInventory?.quantity ?? mongoose.Types.Decimal128.fromString('0');
@@ -176,7 +173,6 @@ export const createSaleProcess = async (
     });
     await sale.save({ session });
 
-    // Crear los SaleDetail
     for (const item of items) {
       const detail = new SaleDetail({
         sale_id: sale._id,
@@ -184,20 +180,13 @@ export const createSaleProcess = async (
         quantity: item.quantity,
         unit_price: item.unit_price
       });
+
       await detail.save({ session });
     }
-
-    await session.commitTransaction();
-    session.endSession();
 
     await bumpBranchCacheVersion('products', String(businessOwnerId), String(branchId));
 
     return sale;
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
-  }
 };
 
 // ─── Listar Ventas ────────────────────────────────────────────────────────────
@@ -346,29 +335,39 @@ export const updateSaleProcess = async (
             branch_id: effectiveBranchId,
             product_id: item.product_id,
             owner_id: ownerId,
-            quantity: { $gte: qtyDecimal }
+            quantity: { $gte: qtyDecimal },
           },
           { $inc: { quantity: negQtyDecimal } },
-          { session, new: true }
+          { session, returnDocument: 'after' },
         );
 
         if (!result) {
           if (!allowNegativeStock) {
-            throw new InsufficientStockError(product.name, item.product_id.toString());
+            throw new InsufficientStockError(
+              product.name,
+              item.product_id.toString(),
+            );
           }
 
+          // Stock insuficiente, pero se permiten cantidades negativas.
+          // IMPORTANTE: no usar upsert.
           result = await Inventory.findOneAndUpdate(
             {
               branch_id: effectiveBranchId,
               product_id: item.product_id,
-              owner_id: ownerId
+              owner_id: ownerId,
             },
-            {
-              $inc: { quantity: negQtyDecimal },
-              $setOnInsert: { min_stock_alert: mongoose.Types.Decimal128.fromString('0') }
-            },
-            { session, new: true, upsert: true }
+            { $inc: { quantity: negQtyDecimal } },
+            { session, returnDocument: 'after' },
           );
+
+          // No existe Inventory para ese producto/sucursal.
+          if (!result) {
+            throw new InsufficientStockError(
+              product.name,
+              item.product_id.toString(),
+            );
+          }
         }
 
         if (!result) throw new Error('Error al actualizar inventario en la edición de venta');
