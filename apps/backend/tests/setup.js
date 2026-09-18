@@ -37,6 +37,32 @@ vi.mock('../lib/redis.js', () => {
         const val = parseInt(store.get(key) || '0', 10) + 1;
         store.set(key, String(val));
         return val;
+      },
+      exists: async (key) => store.has(key) ? 1 : 0,
+      sismember: async (key, value) => {
+        const stored = store.get(key);
+        if (!Array.isArray(stored)) return 0;
+        return stored.includes(value) ? 1 : 0;
+      },
+      pipeline: () => {
+        const commands = [];
+        return {
+          sadd: async (key, ...values) => {
+            const existing = store.get(key);
+            const members = Array.isArray(existing) ? existing : [];
+            for (const value of values) {
+              if (!members.includes(value)) members.push(value);
+            }
+            store.set(key, members);
+            commands.push(['sadd', key, ...values]);
+            return members.length;
+          },
+          expire: async (key, ttl) => {
+            commands.push(['expire', key, ttl]);
+            return 1;
+          },
+          exec: async () => commands,
+        };
       }
     },
     getOrSetCache: async (key, fn) => {

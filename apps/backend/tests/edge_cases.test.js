@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } 
 import request from 'supertest';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { randomUUID } from 'node:crypto';
 import app from '../server.js';
 import { User } from '../models/User.js';
 import { Product } from '../models/Product.js';
@@ -12,6 +13,7 @@ import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import { Purchase } from '../models/Purchase.js';
 import { StockMovement } from '../models/StockMovement.js';
+import { CashShift } from '../models/CashShift.model.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
 
@@ -22,19 +24,43 @@ vi.mock('../mailtrap/emails.js', () => ({
 }));
 
 // Mock Redis COMPLETO
-vi.mock('../lib/redis.js', () => ({
-  redis: {
-    get: vi.fn(async () => null),
-    set: vi.fn(async () => 'OK'),
-    del: vi.fn(async () => 1),
-    incr: vi.fn(async () => 1),
-  },
-  getOrSetCache:    vi.fn(async (_key, fn) => ({ data: await fn(), fromCache: false })),
-  invalidateCache:  vi.fn(async () => {}),
-  bumpCacheVersion: vi.fn(async () => {}),
-  getCacheVersion:  vi.fn(async () => 0),
-  buildPaginatedKey: vi.fn((_p, _v, _pg, _l, uid) => `mock:${uid}`),
-}));
+vi.mock('../lib/redis.js', () => {
+  const store = new Map();
+
+  return {
+    redis: {
+      get: vi.fn(async (key) => store.get(key) ?? null),
+      set: vi.fn(async (key, value, options) => {
+        if (options?.nx && store.has(key)) {
+          return null;
+        }
+
+        store.set(key, value);
+        return 'OK';
+      }),
+      del: vi.fn(async (...keys) => {
+        let count = 0;
+        keys.forEach(k => {
+          if (store.delete(k)) count++;
+        });
+        return count;
+      }),
+      incr: vi.fn(async () => 1),
+      exists: vi.fn(async () => 0),
+      sismember: vi.fn(async () => 0),
+      pipeline: vi.fn(() => ({
+        sadd: vi.fn().mockReturnThis(),
+        expire: vi.fn().mockReturnThis(),
+        exec: vi.fn(async () => []),
+      })),
+    },
+    getOrSetCache: vi.fn(async (_key, fn) => ({ data: await fn(), fromCache: false })),
+    invalidateCache: vi.fn(async () => { }),
+    bumpCacheVersion: vi.fn(async () => { }),
+    getCacheVersion: vi.fn(async () => 0),
+    buildPaginatedKey: vi.fn((_p, _v, _pg, _l, uid) => `mock:${uid}`),
+  };
+});
 
 let mongoReplSet;
 
@@ -64,6 +90,7 @@ afterEach(async () => {
   await Inventory.deleteMany({});
   await Product.deleteMany({});
   await Category.deleteMany({});
+  await CashShift.deleteMany({});
   await Branch.deleteMany({});
   vi.clearAllMocks();
 });
@@ -87,7 +114,10 @@ describe('Casos de Borde Críticos y Seguridad', () => {
     });
     userId = user._id.toString();
 
-    const cat = await Category.create({ name: 'Edge Category', user: userId });
+    const cat = await Category.create({
+      name: 'Edge Category',
+      user: userId
+    });
     categoryId = cat._id.toString();
 
     // Crear sucursales (una activa y otra inactiva)
@@ -98,6 +128,13 @@ describe('Casos de Borde Críticos y Seguridad', () => {
       is_active: true
     });
     activeBranchId = activeBranch._id.toString();
+
+    await CashShift.create({
+      branch_id: activeBranch._id,
+      cashier_id: user._id,
+      status: 'OPEN',
+      opening_balance: 0,
+    });
 
     const inactiveBranch = await Branch.create({
       name: 'Sucursal Inactiva',
@@ -110,7 +147,7 @@ describe('Casos de Borde Críticos y Seguridad', () => {
     // Crear producto base
     const product = await Product.create({
       name: 'Producto Edge',
-      price: 100,
+      price: "100",
       unit_type: 'unidad',
       category: categoryId,
       user: userId
@@ -125,27 +162,53 @@ describe('Casos de Borde Críticos y Seguridad', () => {
   describe('Condiciones de Carrera (Concurrencia de Stock)', () => {
     it('debe prevenir stock negativo al ejecutar peticiones de venta simultáneas', async () => {
       // Stock inicial = 5
-      await Inventory.create({ owner_id: userId, 
+      await Inventory.create({
+        owner_id: userId,
         product_id: productId,
         branch_id: activeBranchId,
-        quantity: 5
+        quantity: "5"
       });
 
       // Crear 3 peticiones concurrentes de 2 unidades cada una (total solicitado = 6, stock = 5)
       const salePayload = {
         payment_method: 'Efectivo',
         branch_id: activeBranchId,
-        items: [{ product_id: productId, quantity: 2, unit_price: 100 }]
+        items: [{ product_id: productId, quantity: '2', unit_price: '100' }]
       };
+
+
+      // Base para generar llaves de idempotencia únicas
+      const idempotencyKeys = [
+        randomUUID(),
+        randomUUID(),
+        randomUUID(),
+      ];
 
       // Ejecutar simultáneamente
       const requests = [
-        request(app).post('/api/sales').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send(salePayload),
-        request(app).post('/api/sales').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send(salePayload),
-        request(app).post('/api/sales').set({ ...authHeaders, 'x-branch-id': branchId.toString() }).send(salePayload)
+        request(app)
+          .post('/api/sales')
+          .set({ ...authHeaders, 'x-branch-id': activeBranchId, 'x-idempotency-key': idempotencyKeys[0], })
+          .send(salePayload),
+        request(app)
+          .post('/api/sales')
+          .set({ ...authHeaders, 'x-branch-id': activeBranchId, 'x-idempotency-key': idempotencyKeys[1], })
+          .send(salePayload),
+        request(app)
+          .post('/api/sales')
+          .set({ ...authHeaders, 'x-branch-id': activeBranchId, 'x-idempotency-key': idempotencyKeys[2] })
+          .send(salePayload)
       ];
 
       const responses = await Promise.all(requests);
+      console.log(
+        '🔥 SALE RESPONSES:',
+        responses.map((r) => ({
+          status: r.status,
+          body: r.body,
+          text: r.text,
+        }))
+      );
 
       const successCount = responses.filter(r => r.status === 201).length;
       const failureCount = responses.filter(r => r.status >= 400).length;
@@ -169,19 +232,20 @@ describe('Casos de Borde Críticos y Seguridad', () => {
   describe('Prevención de operaciones sobre Sucursales Inactivas (Soft-Delete)', () => {
     it('debe fallar al intentar registrar una VENTA en una sucursal inactiva', async () => {
       // Asignar stock en la sucursal inactiva por si acaso
-      await Inventory.create({ owner_id: userId, 
+      await Inventory.create({
+        owner_id: userId,
         product_id: productId,
         branch_id: inactiveBranchId,
-        quantity: 10
+        quantity: "10"
       });
 
       const response = await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': inactiveBranchId })
         .send({
           payment_method: 'Efectivo',
           branch_id: inactiveBranchId,
-          items: [{ product_id: productId, quantity: 1, unit_price: 100 }]
+          items: [{ product_id: productId, quantity: "1", unit_price: "100" }]
         });
 
       expect(response.status).toBe(500); // El middleware/servicio aborta y lanza error
@@ -191,11 +255,11 @@ describe('Casos de Borde Críticos y Seguridad', () => {
     it('debe fallar al intentar registrar una COMPRA en una sucursal inactiva', async () => {
       const response = await request(app)
         .post('/api/purchases')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': inactiveBranchId })
         .send({
           supplier: 'Proveedor Fantasma',
           branch_id: inactiveBranchId,
-          items: [{ product_id: productId, quantity: 5, unit_cost: 80 }]
+          items: [{ product_id: productId, quantity: "5", unit_cost: "80" }]
         });
 
       expect(response.status).toBe(500);
@@ -205,11 +269,11 @@ describe('Casos de Borde Críticos y Seguridad', () => {
     it('debe fallar al intentar registrar un AJUSTE en una sucursal inactiva', async () => {
       const response = await request(app)
         .post('/api/adjustments')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': inactiveBranchId })
         .send({
           product_id: productId,
           branch_id: inactiveBranchId,
-          new_quantity: 50,
+          new_quantity: "50",
           reason: 'correction'
         });
 
@@ -222,10 +286,11 @@ describe('Casos de Borde Críticos y Seguridad', () => {
   describe('Integridad del virtual totalStock de Productos', () => {
     it('debe calcular correctamente el stock consolidado sumando las sucursales pobladas', async () => {
       // Stock en sucursal activa = 15
-      await Inventory.create({ owner_id: userId, 
+      await Inventory.create({
+        owner_id: userId,
         product_id: productId,
         branch_id: activeBranchId,
-        quantity: 15
+        quantity: "15"
       });
 
       // Creamos una segunda sucursal activa para este inquilino
@@ -237,10 +302,11 @@ describe('Casos de Borde Críticos y Seguridad', () => {
       });
 
       // Stock en sucursal secundaria = 25
-      await Inventory.create({ owner_id: userId, 
+      await Inventory.create({
+        owner_id: userId,
         product_id: productId,
         branch_id: anotherBranch._id,
-        quantity: 25
+        quantity: "25"
       });
 
       // Buscar el producto con populate('branchInventories')
@@ -252,10 +318,11 @@ describe('Casos de Borde Críticos y Seguridad', () => {
 
     it('debe retornar 0 si las sucursales no están pobladas en la consulta de Mongoose', async () => {
       // Stock en sucursal activa = 15
-      await Inventory.create({ owner_id: userId, 
+      await Inventory.create({
+        owner_id: userId,
         product_id: productId,
         branch_id: activeBranchId,
-        quantity: 15
+        quantity: "15"
       });
 
       // Buscar el producto SIN populate

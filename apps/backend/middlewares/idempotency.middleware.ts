@@ -19,7 +19,7 @@ export const checkIdempotency = async (req: Request | any, res: Response, next: 
 
     const parsed = idempotencyHeaderSchema.safeParse(key);
     if (!parsed.success) {
-      return res.status(400).json({ success: false, message: (parsed as any).error.errors[0].message });
+      return res.status(400).json({ success: false, essage: parsed.error.issues[0]?.message ?? 'Cabecera x-idempotency-key inválida' });
     }
 
     const userId = req.user ? req.user._id.toString() : 'anonymous';
@@ -31,7 +31,7 @@ export const checkIdempotency = async (req: Request | any, res: Response, next: 
 
     if (lockAcquired) {
       req.idempotencyKey = redisKey;
-      
+
       // Fase 5: Limpieza robusta. Si cualquier middleware o controlador falla (statusCode >= 400),
       // liberamos el lock. Esto cubre fallos en validate() y errores de negocio.
       res.on('finish', () => {
@@ -39,7 +39,7 @@ export const checkIdempotency = async (req: Request | any, res: Response, next: 
           redis.del(redisKey).catch(err => getCurrentLogger().error({ err }, "Error borrando lock idempotente on finish"));
         }
       });
-      
+
       return next();
     }
 
