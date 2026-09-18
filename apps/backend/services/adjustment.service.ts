@@ -30,6 +30,19 @@ export const executeAdjustment = async ({
   session.startTransaction();
 
   try {
+    const branch = await Branch.findOne({
+      _id: targetBranchId,
+      owner_id: ownerId,
+      is_active: true
+    }).session(session);
+
+    if (!branch) {
+      throw new AppError(
+        404,
+        'La sucursal a ajustar no existe o se encuentra inactiva.'
+      );
+    }
+
     const productExists = await Product.exists({ _id: product_id, user: ownerId }).session(session);
     if (!productExists) {
       throw new AppError(404, 'El producto especificado no existe en el catálogo de este negocio.');
@@ -53,7 +66,7 @@ export const executeAdjustment = async ({
       },
       {
         upsert: true,
-        new: true,
+        returnDocument: 'after',
         session
       }
     );

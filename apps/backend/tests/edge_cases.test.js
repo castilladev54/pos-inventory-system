@@ -240,6 +240,13 @@ describe('Casos de Borde Críticos y Seguridad', () => {
         quantity: "10"
       });
 
+      await CashShift.create({
+        branch_id: inactiveBranchId,
+        cashier_id: userId,
+        status: 'OPEN',
+        opening_balance: 0,
+      });
+
       const response = await request(app)
         .post('/api/sales')
         .set({ ...authHeaders, 'x-branch-id': inactiveBranchId })
@@ -274,11 +281,11 @@ describe('Casos de Borde Críticos y Seguridad', () => {
         .send({
           product_id: productId,
           branch_id: inactiveBranchId,
-          new_quantity: "50",
-          reason: 'correction'
+          quantity: 50,
+          reason: 'CORRECTION'
         });
 
-      expect(response.status).toBe(400); // El controlador de ajustes devuelve 400 en errores de regla de negocio
+      expect(response.status).toBe(404); // El controlador de ajustes devuelve 404 para sucursales inactivas
       expect(response.body.message).toContain('inactiva');
     });
   });

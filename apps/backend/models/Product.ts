@@ -12,6 +12,12 @@ export interface IProduct extends Document {
   unit_type: "unidad" | "kg" | "litro" | "metro";
   user: BusinessOwnerId; // Inquilino / Dueño del negocio
   max_debt_limit?: mongoose.Types.Decimal128 | null; // Override del límite de deuda
+
+  branchInventories?: Array<{
+    quantity: mongoose.Types.Decimal128;
+  }>;
+
+  totalStock?: number;
 }
 
 const productSchema = new Schema<IProduct>(
@@ -54,6 +60,27 @@ const productSchema = new Schema<IProduct>(
   }
 );
 
+productSchema.virtual('branchInventories', {
+  ref: 'Inventory',
+  localField: '_id',
+  foreignField: 'product_id',
+  justOne: false,
+  match: (product: IProduct) => ({
+    owner_id: product.user,
+  }),
+});
+
+productSchema.virtual('totalStock').get(function (this: IProduct): number {
+  const inventories = this.branchInventories;
+
+  if (!Array.isArray(inventories)) {
+    return 0;
+  }
+
+  return inventories.reduce((total, inventory) => {
+    return total + Number(inventory.quantity.toString());
+  }, 0);
+});
 
 productSchema.index({ barcode: 1, user: 1 }, { unique: true, sparse: true });
 productSchema.index({ user: 1, createdAt: -1 });
