@@ -173,7 +173,6 @@ describe('Casos de Borde Críticos y Seguridad', () => {
       // Crear 3 peticiones concurrentes de 2 unidades cada una (total solicitado = 6, stock = 5)
       const salePayload = {
         payment_method: 'Efectivo',
-        branch_id: activeBranchId,
         items: [{ product_id: productId, quantity: '2', unit_price: '100' }]
       };
 
@@ -249,10 +248,9 @@ describe('Casos de Borde Críticos y Seguridad', () => {
 
       const response = await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': inactiveBranchId })
+        .set({ ...authHeaders, 'x-branch-id': inactiveBranchId, 'x-idempotency-key': randomUUID() })
         .send({
           payment_method: 'Efectivo',
-          branch_id: inactiveBranchId,
           items: [{ product_id: productId, quantity: "1", unit_price: "100" }]
         });
 
@@ -266,7 +264,6 @@ describe('Casos de Borde Críticos y Seguridad', () => {
         .set({ ...authHeaders, 'x-branch-id': inactiveBranchId })
         .send({
           supplier: 'Proveedor Fantasma',
-          branch_id: inactiveBranchId,
           items: [{ product_id: productId, quantity: "5", unit_cost: "80" }]
         });
 
@@ -280,7 +277,6 @@ describe('Casos de Borde Críticos y Seguridad', () => {
         .set({ ...authHeaders, 'x-branch-id': inactiveBranchId })
         .send({
           product_id: productId,
-          branch_id: inactiveBranchId,
           quantity: 50,
           reason: 'CORRECTION'
         });
