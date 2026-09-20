@@ -30,10 +30,12 @@ vi.mock('../lib/redis.js', () => ({
     set: vi.fn(async () => 'OK'),
     del: vi.fn(async () => 1),
     incr: vi.fn(async () => 1),
+    exists: vi.fn(async () => 1),
   },
   getOrSetCache: vi.fn(async (_key, fn) => ({ data: await fn(), fromCache: false })),
   invalidateCache: vi.fn(async () => { }),
   bumpCacheVersion: vi.fn(async () => { }),
+  bumpBranchCacheVersion: vi.fn(async () => { }),
   getCacheVersion: vi.fn(async () => 0),
   buildPaginatedKey: vi.fn((_p, _v, _pg, _l, uid) => `mock:${uid}`),
 }));
@@ -164,9 +166,14 @@ describe('Sale Controllers Integration', () => {
         .set('x-idempotency-key', crypto.randomUUID())
         .send(payload);
 
+      console.log(
+        'FRACTIONAL SALE RESPONSE:',
+        JSON.stringify(response.body, null, 2)
+      );
+
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
-      expect(response.body.sale.total_amount).toBe(8250); // 1500 * 5.5 = 8250
+      expect(response.body.sale.total_amount).toBe('8250'); // 1500 * 5.5 = 8250
       expect(response.body.sale.payment_method).toBe('Tarjeta');
       expect(response.body.sale.status).toBe('completed');
 
@@ -176,12 +183,12 @@ describe('Sale Controllers Integration', () => {
       const details = await SaleDetail.find({ sale_id: saleId });
       expect(details).toHaveLength(1);
       expect(details[0].product_id.toString()).toBe(productId);
-      expect(details[0].quantity).toBe(5.5);
+      expect(details[0].quantity.toString()).toBe('5.5');
 
       // 2. STOCK DECREMENTADO AUTOMÁTICAMENTE: 
       // Teníamos 20 de inventario, acabamos de vender 5.5 -> Quedan 14.5 en Inventory
       const updatedInventory = await Inventory.findOne({ product_id: productId, branch_id: branchId });
-      expect(updatedInventory.quantity).toBe(14.5);
+      expect(updatedInventory.quantity.toString()).toBe('14.5');
     });
 
     it('should return 400 validation error if missing required Zod fields (e.g., payment_method)', async () => {
@@ -224,7 +231,7 @@ describe('Sale Controllers Integration', () => {
 
       // El stock debió quedarse en 20 intacto en Inventory
       const updatedInventory = await Inventory.findOne({ product_id: productId, branch_id: branchId });
-      expect(updatedInventory.quantity).toBe(20);
+      expect(updatedInventory.quantity.toString()).toBe('20');
     });
 
     it('should return 404 if product inside the items array does not exist', async () => {
@@ -265,7 +272,7 @@ describe('Sale Controllers Integration', () => {
       expect(response.status).toBe(200);
       expect(response.body.sales).toHaveLength(1);
       expect(response.body.sales[0].payment_method).toBe('Efectivo');
-      expect(response.body.sales[0].total_amount).toBe(100);
+      expect(response.body.sales[0].total_amount).toBe('100');
     });
   });
 

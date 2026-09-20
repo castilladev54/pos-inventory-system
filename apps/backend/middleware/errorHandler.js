@@ -21,7 +21,14 @@ export const errorHandler = (err, req, res, next) => {
     if (err.code === 11000) statusCode = 409; // Duplicate key
     
     // Captura de errores personalizados (por ej. falta de stock, etc)
-    if (err.message && (err.message.includes('Stock') || err.message.toLowerCase().includes('no encontrado'))) {
+    if (
+      err.message &&
+      statusCode !== 404 &&
+      (
+        err.message.includes('Stock') ||
+        err.message.toLowerCase().includes('no encontrado')
+      )
+    ) {
         statusCode = 400;
     }
   
