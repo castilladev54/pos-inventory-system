@@ -6,6 +6,7 @@ import app from '../server.js';
 import { User } from '../models/User.js';
 import { Category } from '../models/Category.js';
 import { Product } from '../models/Product.js';
+import { Branch } from '../models/Branch.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
 
@@ -24,11 +25,18 @@ vi.mock('../lib/redis.js', () => ({
     set: vi.fn(async () => 'OK'),
     del: vi.fn(async () => 1),
     incr: vi.fn(async () => 1),
+    exists: vi.fn(async () => 0),
+    pipeline: vi.fn(() => ({
+      sismember: vi.fn().mockReturnThis(),
+      exec: vi.fn(async () => [[null, 0]]),
+    })),
   },
   getOrSetCache:    vi.fn(async (_key, fn) => ({ data: await fn(), fromCache: false })),
   invalidateCache:  vi.fn(async () => {}),
   bumpCacheVersion: vi.fn(async () => {}),
   getCacheVersion:  vi.fn(async () => 0),
+  bumpBranchCacheVersion: vi.fn(async () => {}),
+  getBranchCacheVersion:  vi.fn(async () => 0),
   buildPaginatedKey: vi.fn((_p, _v, _pg, _l, uid) => `mock:${uid}`),
 }));
 
@@ -62,6 +70,7 @@ describe('Product Controllers Integration', () => {
   let categoryId;
   let userId;
   let testEmail;
+  let branchId;
   
   beforeAll(async () => {
     testEmail = `user${Date.now()}${Math.floor(Math.random() * 1000)}@example.com`;
@@ -75,6 +84,15 @@ describe('Product Controllers Integration', () => {
       role: 'admin'
     });
     userId = user._id.toString();
+
+    const branch = await Branch.create({
+      name: 'Test Branch',
+      address: 'Test Address',
+      owner_id: user._id,
+      is_active: true,
+      max_debt_limit: -20,
+    });
+    branchId = branch._id;
 
     // 2. Generar JWT directamente (stateless, sin login HTTP)
     authHeaders = getAuthHeadersForUser(user._id, user.role);
@@ -102,10 +120,14 @@ describe('Product Controllers Integration', () => {
           unit_type: 'kg'
         });
 
+      console.log('🔥 PRODUCT RESPONSE:', {
+        status: response.status,
+        body: response.body,
+      });
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
       expect(response.body.product.name).toBe('Test Product');
-      expect(response.body.product.price).toBe(150);
+      expect(response.body.product.price).toBe('150');
       // stock ya no vive en Product — migrado a Inventory
       expect(response.body.product.category).toBe(categoryId);
       expect(response.body.product.user).toBe(userId);
@@ -148,6 +170,10 @@ describe('Product Controllers Integration', () => {
         .get('/api/products')
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
+      console.log('🔥 GET PRODUCTS RESPONSE:', {
+        status: response.status,
+        body: response.body,
+      });
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.products).toHaveLength(0);
@@ -240,7 +266,7 @@ describe('Product Controllers Integration', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.product.name).toBe('New Name');
-      expect(response.body.product.price).toBe(20);
+      expect(response.body.product.price).toBe('20');
       expect(response.body.product.unit_type).toBe('litro');
       // stock ya no vive en Product — migrado a Inventory
     });

@@ -6,7 +6,6 @@ import app from '../server.js';
 import { User } from '../models/User.js';
 import { Category } from '../models/Category.js';
 import { Product } from '../models/Product.js';
-import { Branch } from '../models/Branch.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
 
@@ -56,6 +55,7 @@ describe('Barcode Feature — Integration Tests', () => {
   let authHeaders;
   let categoryId;
   let userId;
+  let testEmail;
   let branchId;
 
   beforeAll(async () => {
@@ -72,14 +72,7 @@ describe('Barcode Feature — Integration Tests', () => {
     // 2. Generar JWT directamente (stateless, sin login HTTP)
     authHeaders = getAuthHeadersForUser(user._id, user.role);
 
-    // 3. Crear sucursal activa
-    const branch = await Branch.create({
-      name: 'Sucursal Barcode',
-      address: 'Calle Falsa 123',
-      owner_id: user._id,
-      is_active: true,
-    });
-    branchId = branch._id.toString();
+    branchId = new mongoose.Types.ObjectId();
 
     // 4. Crear categoría base en BD
     const category = new Category({ name: 'Barcode Category', user: userId });
