@@ -201,15 +201,6 @@ describe('Casos de Borde Críticos y Seguridad', () => {
       ];
 
       const responses = await Promise.all(requests);
-      console.log(
-        '🔥 SALE RESPONSES:',
-        responses.map((r) => ({
-          status: r.status,
-          body: r.body,
-          text: r.text,
-        }))
-      );
-
       const successCount = responses.filter(r => r.status === 201).length;
       const failureCount = responses.filter(r => r.status >= 400).length;
 
