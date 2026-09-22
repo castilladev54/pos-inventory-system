@@ -74,6 +74,7 @@ export class PurchaseController {
       });
 
     } catch (error: any) {
+      console.error("DEBUG 500 ERROR IN PURCHASE:", error);
       const status = error.message?.includes?.("encontrado") ? 404 : 500;
       res.status(status).json({ success: false, message: error.message || 'Error interno' });
     }

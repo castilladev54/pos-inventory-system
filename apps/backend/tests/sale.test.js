@@ -10,8 +10,10 @@ import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import { Branch } from '../models/Branch.ts';
 import { Inventory } from '../models/Inventory.ts';
+import { StockMovement } from '../models/StockMovement.ts';
 import { CashShift } from '../models/CashShift.model.ts';
 import bcryptjs from 'bcryptjs';
+import { createAdminUser, createBranch } from './helpers/testUtils.js';
 import { getAuthHeadersForUser } from './helpers/auth.js';
 import crypto from 'crypto';
 
@@ -23,7 +25,6 @@ vi.mock('../mailtrap/emails.js', () => ({
   sendResetSuccessEmail: vi.fn(),
 }));
 
-// Mock Redis COMPLETO
 vi.mock('../lib/redis.js', () => ({
   redis: {
     get: vi.fn(async () => null),
@@ -31,6 +32,10 @@ vi.mock('../lib/redis.js', () => ({
     del: vi.fn(async () => 1),
     incr: vi.fn(async () => 1),
     exists: vi.fn(async () => 1),
+    pipeline: vi.fn(() => ({
+      sismember: vi.fn().mockReturnThis(),
+      exec: vi.fn(async () => [[null, 0]]),
+    })),
   },
   getOrSetCache: vi.fn(async (_key, fn) => ({ data: await fn(), fromCache: false })),
   invalidateCache: vi.fn(async () => { }),
@@ -66,6 +71,7 @@ afterEach(async () => {
   await SaleDetail.deleteMany({});
   await Product.deleteMany({});
   await Inventory.deleteMany({});
+  await StockMovement.deleteMany({});
   vi.clearAllMocks();
 });
 
@@ -77,30 +83,20 @@ describe('Sale Controllers Integration', () => {
   let branchId;
 
   beforeAll(async () => {
-    const testEmail = `seller${Date.now()}${Math.floor(Math.random() * 1000)}@example.com`;
-    const hashedPassword = await bcryptjs.hash('password123', 10);
-    const user = await User.create({
-      email: testEmail,
-      password: hashedPassword,
-      name: 'Sales Admin',
-      role: 'admin'
-    });
-    userId = user._id.toString();
-
-    authHeaders = getAuthHeadersForUser(user._id, user.role);
+    const adminRes = await createAdminUser('seller');
+    userId = adminRes.userId;
+    authHeaders = adminRes.authHeaders;
 
     const category = new Category({ name: 'Tech Store', user: userId });
     await category.save();
     categoryId = category._id.toString();
 
     // Crear sucursal de prueba
-    const branch = await Branch.create({
+    const branchRes = await createBranch(userId, {
       name: 'Sucursal de Pruebas Ventas',
-      address: 'Calle de las Ventas 77',
-      owner_id: userId,
-      is_active: true
+      address: 'Calle de las Ventas 77'
     });
-    branchId = branch._id.toString();
+    branchId = branchRes.branchId.toString();
   });
 
   beforeEach(async () => {
@@ -189,6 +185,12 @@ describe('Sale Controllers Integration', () => {
       // Teníamos 20 de inventario, acabamos de vender 5.5 -> Quedan 14.5 en Inventory
       const updatedInventory = await Inventory.findOne({ product_id: productId, branch_id: branchId });
       expect(updatedInventory.quantity.toString()).toBe('14.5');
+
+      // 3. STOCK MOVEMENT CREADO
+      const movements = await StockMovement.find({ product_id: productId, branch_id: branchId });
+      expect(movements).toHaveLength(1);
+      expect(movements[0].type).toBe('SALE');
+      expect(movements[0].quantity_change.toString()).toBe('-5.5');
     });
 
     it('should return 400 validation error if missing required Zod fields (e.g., payment_method)', async () => {

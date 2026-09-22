@@ -8,6 +8,7 @@ import { Category } from '../models/Category.js';
 import { Product } from '../models/Product.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
+import { createAdminUser, createBranch } from './helpers/testUtils.js';
 
 vi.mock('../mailtrap/emails.js', () => ({
   sendPasswordResetEmail: vi.fn(),
@@ -59,20 +60,14 @@ describe('Barcode Feature — Integration Tests', () => {
   let branchId;
 
   beforeAll(async () => {
-    // 1. Crear usuario admin directamente en BD
-    const hashedPassword = await bcryptjs.hash('password123', 10);
-    const user = await User.create({
-      email: `barcode_tester_${Date.now()}@example.com`,
-      password: hashedPassword,
-      name: 'Barcode Admin',
-      role: 'admin',
-    });
-    userId = user._id.toString();
+    // 1 & 2. Crear usuario admin
+    const adminRes = await createAdminUser('barcode_tester');
+    userId = adminRes.userId;
+    authHeaders = adminRes.authHeaders;
 
-    // 2. Generar JWT directamente (stateless, sin login HTTP)
-    authHeaders = getAuthHeadersForUser(user._id, user.role);
-
-    branchId = new mongoose.Types.ObjectId();
+    // 3. Crear sucursal de prueba REAL
+    const branchRes = await createBranch(userId, { name: 'Barcode Branch' });
+    branchId = branchRes.branchId.toString();
 
     // 4. Crear categoría base en BD
     const category = new Category({ name: 'Barcode Category', user: userId });
@@ -180,14 +175,10 @@ describe('Barcode Feature — Integration Tests', () => {
 
     it('un usuario NO debe ver el producto con barcode de OTRO usuario', async () => {
       // Crear segundo usuario
-      const hashedPwd = await bcryptjs.hash('pass123', 10);
-      const otherUser = await User.create({
-        email: `other_${Date.now()}@example.com`,
-        password: hashedPwd,
-        name: 'Other User',
-        role: 'admin',
-      });
-      const otherHeaders = getAuthHeadersForUser(otherUser._id, otherUser.role);
+      const otherAdminRes = await createAdminUser('other');
+      const otherHeaders = otherAdminRes.authHeaders;
+      const otherBranchRes = await createBranch(otherAdminRes.userId, { name: 'Other Branch' });
+      const otherBranchId = otherBranchRes.branchId.toString();
 
       // El usuario original crea producto con barcode
       await request(app)
@@ -198,7 +189,7 @@ describe('Barcode Feature — Integration Tests', () => {
       // El otro usuario intenta buscar ese barcode → debe ser 404
       const response = await request(app)
         .get('/api/products/barcode/9999999999999')
-        .set(otherHeaders);
+        .set({ ...otherHeaders, 'x-branch-id': otherBranchId });
 
       expect(response.status).toBe(404);
     });
