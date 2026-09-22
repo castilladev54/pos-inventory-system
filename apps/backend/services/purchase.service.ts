@@ -119,7 +119,11 @@ export class PurchaseService {
         session.endSession();
       }
       
-      await bumpBranchCacheVersion('products', String(ownerId), String(branchId));
+      await bumpBranchCacheVersion(
+        'products',
+        String(ownerId),
+        String(branchId)
+      );
       
       return purchase;
     } catch (error) {

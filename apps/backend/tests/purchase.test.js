@@ -37,8 +37,9 @@ vi.mock('../lib/redis.js', () => ({
     })),
   },
   getOrSetCache: vi.fn(async (_key, fn) => ({ data: await fn(), fromCache: false })),
-  invalidateCache: vi.fn(async () => {}),
-  bumpCacheVersion: vi.fn(async () => {}),
+  invalidateCache: vi.fn(async () => { }),
+  bumpCacheVersion: vi.fn(async () => { }),
+  bumpBranchCacheVersion: vi.fn(async () => { }),
   getCacheVersion: vi.fn(async () => 0),
   buildPaginatedKey: vi.fn((_p, _v, _pg, _l, uid) => `mock:${uid}`),
 }));
@@ -49,13 +50,13 @@ beforeAll(async () => {
   // CRÃTICO: El controlador de Purchases usa Transacciones (session.startTransaction()).
   mongoReplSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   const mongoUri = mongoReplSet.getUri();
-  
+
   if (mongoose.connection.readyState !== 0) {
     await mongoose.disconnect();
   }
   await mongoose.connect(mongoUri);
   await new Promise((r) => setTimeout(r, 2500));
-}, 120000); 
+}, 120000);
 
 afterAll(async () => {
   await mongoose.disconnect();
@@ -70,7 +71,7 @@ afterEach(async () => {
   await Inventory.deleteMany({});
   await StockMovement.deleteMany({});
   await User.updateMany({}, { av_inventory_cost: 0 });
-  
+
   vi.clearAllMocks();
 });
 
@@ -80,7 +81,7 @@ describe('Purchase Controllers Integration', () => {
   let categoryId;
   let productId;
   let branchId;
-  
+
   beforeAll(async () => {
     // 1 & 2. Iniciamos usuario único para todo el bloque y obtenemos JWT
     const adminRes = await createAdminUser('purchaser');
@@ -111,7 +112,8 @@ describe('Purchase Controllers Integration', () => {
     productId = product._id.toString();
 
     // Inyectar el stock inicial en la sucursal de prueba
-    await Inventory.create({ owner_id: userId, 
+    await Inventory.create({
+      owner_id: userId,
       product_id: product._id,
       branch_id: branchId,
       quantity: 0,
@@ -143,12 +145,16 @@ describe('Purchase Controllers Integration', () => {
         .post('/api/purchases')
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send(payload);
+      console.log('🔥 PURCHASE RESPONSE:', {
+        status: response.status,
+        body: response.body,
+      });
 
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
       expect(response.body.purchase.supplier).toBe('Global Supplier Corp');
-      expect(response.body.purchase.total_cost).toBe(1600); // 1550 + 50
-      
+      expect(response.body.purchase.total_cost).toBe('1600'); // 1550 + 50
+
       const purchaseId = response.body.purchase._id;
 
       // 1. Verifica los Detalles Reales creados en BD
@@ -172,7 +178,7 @@ describe('Purchase Controllers Integration', () => {
 
       // El pre-save de PurchaseDetail también debió actualizar el "av_inventory_cost" en User.
       const updatedUser = await User.findById(userId);
-      expect(updatedUser.av_inventory_cost).toBeDefined(); 
+      expect(updatedUser.av_inventory_cost).toBeDefined();
     });
 
     it('should correctly rollback transaction (abortTransaction) and return 404 if product does not exist', async () => {
@@ -208,7 +214,7 @@ describe('Purchase Controllers Integration', () => {
         .send({ admin_id: userId, branch_id: branchId, supplier: 'No items supplier, will crash' });
 
       // Bad Request from Zod Validator
-      expect(response.status).toBe(400); 
+      expect(response.status).toBe(400);
     });
   });
 
@@ -245,11 +251,11 @@ describe('Purchase Controllers Integration', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.purchase._id).toBe(purchaseId);
-      
+
       // Verifica que traiga los items empaquetados juntos
       expect(response.body.details).toHaveLength(1);
       // Verifica populaciÃ³n de la tabla de detalles con la de productos (nombre)
-      expect(response.body.details[0].product_id.name).toBe('Engine X1'); 
+      expect(response.body.details[0].product_id.name).toBe('Engine X1');
     });
 
     it('should return 404 for a non-existent purchase search', async () => {
@@ -283,7 +289,7 @@ describe('Purchase Controllers Integration', () => {
       expect(purchase.due_date).toBeDefined();
       expect(new Date(purchase.due_date).getTime()).toBeGreaterThan(expectedMin.getTime());
       expect(purchase.status).toBe('PENDING');
-      expect(purchase.paid_amount).toBe(0);
+      expect(purchase.paid_amount.toString()).toBe('0');
     });
 
     it('should use a custom dueDate when provided in the request body', async () => {
@@ -346,7 +352,7 @@ describe('Purchase Controllers Integration', () => {
       // Crear compra con due_date en el pasado directamente en BD
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 10); // VenciÃ³ hace 10 dÃ­as
-      
+
       await Purchase.create({
         admin_id: userId,
         branch_id: branchId,
@@ -363,7 +369,7 @@ describe('Purchase Controllers Integration', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.purchases.length).toBeGreaterThanOrEqual(1);
-      
+
       // Todas las devueltas deben tener due_date < hoy
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -376,7 +382,7 @@ describe('Purchase Controllers Integration', () => {
       // Crear compra con due_date en 3 dÃ­as (dentro del rango de 7 dÃ­as)
       const soonDate = new Date();
       soonDate.setDate(soonDate.getDate() + 3);
-      
+
       await Purchase.create({
         admin_id: userId,
         branch_id: branchId,
@@ -393,7 +399,7 @@ describe('Purchase Controllers Integration', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.purchases.length).toBeGreaterThanOrEqual(1);
-      
+
       const supplierNames = response.body.purchases.map(p => p.supplier);
       expect(supplierNames).toContain('Soon Supplier');
     });
@@ -402,7 +408,7 @@ describe('Purchase Controllers Integration', () => {
       // Crear compra PAGADA con due_date vencida
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 5);
-      
+
       await Purchase.create({
         admin_id: userId,
         branch_id: branchId,
@@ -414,7 +420,7 @@ describe('Purchase Controllers Integration', () => {
         payment_date: new Date()
       });
       pastDate.setDate(pastDate.getDate() - 5);
-      
+
       await Purchase.create({
         admin_id: userId,
         branch_id: branchId,
@@ -456,7 +462,7 @@ describe('Purchase Controllers Integration', () => {
       expect(payRes.status).toBe(200);
       expect(payRes.body.success).toBe(true);
       expect(payRes.body.purchase.status).toBe('PARTIAL');
-      expect(payRes.body.purchase.paid_amount).toBe(400);
+      expect(payRes.body.purchase.paid_amount).toBe('400');
       expect(payRes.body.purchase.payment_date).toBeUndefined(); // AÃºn no se ha liquidado
     });
 
@@ -478,7 +484,7 @@ describe('Purchase Controllers Integration', () => {
 
       expect(payRes.status).toBe(200);
       expect(payRes.body.purchase.status).toBe('PAID');
-      expect(payRes.body.purchase.paid_amount).toBe(500);
+      expect(payRes.body.purchase.paid_amount).toBe('500');
       expect(payRes.body.purchase.payment_date).toBeDefined(); // Fecha de pago registrada
     });
 
@@ -498,7 +504,7 @@ describe('Purchase Controllers Integration', () => {
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 100 });
       expect(pay1.body.purchase.status).toBe('PARTIAL');
-      expect(pay1.body.purchase.paid_amount).toBe(100);
+      expect(pay1.body.purchase.paid_amount).toBe('100');
 
       // Segundo abono: $100 â†’ total $200
       const pay2 = await request(app)
@@ -506,7 +512,7 @@ describe('Purchase Controllers Integration', () => {
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 100 });
       expect(pay2.body.purchase.status).toBe('PARTIAL');
-      expect(pay2.body.purchase.paid_amount).toBe(200);
+      expect(pay2.body.purchase.paid_amount).toBe('200');
 
       // Tercer abono: $100 â†’ total $300 = PAGADO
       const pay3 = await request(app)
@@ -514,7 +520,7 @@ describe('Purchase Controllers Integration', () => {
         .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
         .send({ amount: 100 });
       expect(pay3.body.purchase.status).toBe('PAID');
-      expect(pay3.body.purchase.paid_amount).toBe(300);
+      expect(pay3.body.purchase.paid_amount).toBe('300');
       expect(pay3.body.purchase.payment_date).toBeDefined();
     });
 
@@ -536,7 +542,7 @@ describe('Purchase Controllers Integration', () => {
 
       expect(payRes.status).toBe(200);
       expect(payRes.body.purchase.status).toBe('PAID');
-      expect(payRes.body.purchase.paid_amount).toBe(200); // Nivelado al total, no $999
+      expect(payRes.body.purchase.paid_amount).toBe('200'); // Nivelado al total, no $999
     });
 
     it('should return 400 when trying to pay an already PAID purchase', async () => {
