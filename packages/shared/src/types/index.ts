@@ -303,6 +303,23 @@ export interface IStockTransfer {
   updatedAt: string;
 }
 
+export interface CreateStockTransferItem {
+  product_id: ProductId;
+  quantity: string;
+}
+
+export interface CreateStockTransferRequest {
+  sourceBranchId: BranchId;
+  destinationBranchId: BranchId;
+  items: CreateStockTransferItem[];
+  notes?: string;
+}
+
+export interface CreateStockTransferResponse {
+  success: true;
+  message: string;
+}
+
 // ─── CONSTANTES REUTILIZABLES ───────────────────────────────────────────────
 // Estas constantes se usan tanto para validaciones Zod como para UIs.
 

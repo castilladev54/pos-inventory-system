@@ -165,6 +165,40 @@ export const createAdjustmentBodySchema = z.object({
 });
 export type CreateAdjustmentDTO = z.infer<typeof createAdjustmentBodySchema>;
 
+// ─── TRANSFERENCIAS DE STOCK ────────────────────────────────────────────────
+
+const positiveNumericString = numericString.refine(
+  (value) => Number(value) > 0,
+  'La cantidad debe ser mayor que 0'
+);
+
+export const createStockTransferItemSchema = z.object({
+  product_id: z
+    .string()
+    .regex(OBJECT_ID_REGEX, 'Invalid Product ID format'),
+  quantity: positiveNumericString,
+});
+
+export const createStockTransferBodySchema = z
+  .object({
+    sourceBranchId: z
+      .string()
+      .regex(OBJECT_ID_REGEX, 'Invalid Source Branch ID format'),
+    destinationBranchId: z
+      .string()
+      .regex(OBJECT_ID_REGEX, 'Invalid Destination Branch ID format'),
+    items: z
+      .array(createStockTransferItemSchema)
+      .min(1, 'Debe incluir al menos un producto'),
+    notes: z.string().trim().optional(),
+  })
+  .refine((data) => data.sourceBranchId !== data.destinationBranchId, {
+    message: 'La sucursal de origen y destino deben ser diferentes',
+    path: ['destinationBranchId'],
+  });
+
+export type CreateStockTransferDTO = z.infer<typeof createStockTransferBodySchema>;
+
 // ─── TASAS DE CAMBIO ────────────────────────────────────────────────────────
 
 export const rateBodySchema = z.object({
