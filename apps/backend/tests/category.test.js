@@ -8,6 +8,7 @@ import { Category } from '../models/Category.js';
 import { Product } from '../models/Product.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
+import { createBranch } from './helpers/testUtils.js';
 
 // Mocking external email delivery API to avoid sending real emails
 vi.mock('../mailtrap/emails.js', () => ({
@@ -62,6 +63,7 @@ afterEach(async () => {
 describe('Category Controllers Integration', () => {
   let authHeaders;
   let userId;
+  let branchId;
   
   beforeAll(async () => {
     const testEmail = `categorytest${Date.now()}${Math.floor(Math.random() * 1000)}@example.com`;
@@ -78,6 +80,9 @@ describe('Category Controllers Integration', () => {
     
     // 2. Generar JWT directamente (stateless, sin login HTTP)
     authHeaders = getAuthHeadersForUser(user._id, user.role);
+
+    const branchRes = await createBranch(userId);
+    branchId = branchRes.branchId;
   });
 
   describe('POST /api/categories', () => {

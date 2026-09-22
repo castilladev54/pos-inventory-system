@@ -7,6 +7,7 @@ import { User } from '../models/User.js';
 import { ExchangeRate } from '../models/ExchangeRate.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
+import { createBranch } from './helpers/testUtils.js';
 
 // ───────────────────────────────────────────────────────────────
 // MOCKS OBLIGATORIOS (idénticos a los de toda la suite de tests)
@@ -81,6 +82,7 @@ afterEach(async () => {
 describe('Suite de Integración: Motor Cambiario y Zonas Horarias', () => {
   let authHeaders: Record<string, string>;
   let userId: string;
+  let branchId: mongoose.Types.ObjectId;
 
   beforeAll(async () => {
     const testEmail = `ratetest${Date.now()}${Math.floor(Math.random() * 1000)}@example.com`;
@@ -93,6 +95,9 @@ describe('Suite de Integración: Motor Cambiario y Zonas Horarias', () => {
     });
     userId = user._id.toString();
     authHeaders = getAuthHeadersForUser(user._id, user.role);
+
+    const branchRes = await createBranch(userId);
+    branchId = branchRes.branchId;
   });
 
   // ─────────────────────────────────────────────────────────────

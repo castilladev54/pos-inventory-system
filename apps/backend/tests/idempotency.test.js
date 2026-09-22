@@ -46,6 +46,7 @@ import { Product } from '../models/Product.js';
 import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import { Branch } from '../models/Branch.ts';
+import { CashShift } from '../models/CashShift.model.ts';
 import { Inventory } from '../models/Inventory.ts';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
@@ -85,6 +86,7 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
   let categoryId;
   let productId;
   let branchId;
+  let shiftId;
 
   beforeAll(async () => {
     const testEmail = `idem${Date.now()}@example.com`;
@@ -109,6 +111,14 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
       is_active: true
     });
     branchId = branch._id.toString();
+
+    const shift = await CashShift.create({
+      branch_id: branchId,
+      user_id: userId,
+      status: 'OPEN',
+      opening_balance: 100
+    });
+    shiftId = shift._id.toString();
   });
 
   beforeEach(async () => {
@@ -142,17 +152,17 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
     // Primera petición: debe crear la venta
     const res1 = await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-idempotency-key': uuidA })
+      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-shift-id': shiftId, 'x-idempotency-key': uuidA })
       .send(payload);
 
     expect(res1.status).toBe(201);
     expect(res1.body.success).toBe(true);
-    expect(res1.body.sale.total_amount).toBe(200);
+    expect(res1.body.sale.total_amount).toBe('200');
 
     // Segunda petición con la misma llave: debe devolver 200 y la misma respuesta sin crear otra venta
     const res2 = await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-idempotency-key': uuidA })
+      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-shift-id': shiftId, 'x-idempotency-key': uuidA })
       .send(payload);
 
     expect(res2.status).toBe(200);
@@ -176,7 +186,7 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
     // Primera petición falla por Zod ValidationError
     const res1 = await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-idempotency-key': uuidB })
+      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-shift-id': shiftId, 'x-idempotency-key': uuidB })
       .send(invalidPayload);
 
     expect(res1.status).toBe(400);
@@ -188,7 +198,7 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
     const validPayload = { ...invalidPayload, payment_method: 'Efectivo' };
     const res2 = await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-idempotency-key': uuidB })
+      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-shift-id': shiftId, 'x-idempotency-key': uuidB })
       .send(validPayload);
 
     expect(res2.status).toBe(201);
@@ -207,12 +217,12 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
     // Lanzamos ambas peticiones sin await, simulando concurrencia
     const p1 = request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-idempotency-key': uuidC })
+      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-shift-id': shiftId, 'x-idempotency-key': uuidC })
       .send(payload);
 
     const p2 = request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-idempotency-key': uuidC })
+      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-shift-id': shiftId, 'x-idempotency-key': uuidC })
       .send(payload);
 
     const [res1, res2] = await Promise.all([p1, p2]);
@@ -236,7 +246,7 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
     // Primera petición falla por stock
     const res1 = await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-idempotency-key': uuidD })
+      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-shift-id': shiftId, 'x-idempotency-key': uuidD })
       .send(failPayload);
 
     expect(res1.status).toBe(400);
@@ -250,7 +260,7 @@ describe('Idempotency Lifecycle Tests (Phase 7)', () => {
 
     const res2 = await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-idempotency-key': uuidD })
+      .set({ ...authHeaders, 'x-branch-id': branchId, 'x-shift-id': shiftId, 'x-idempotency-key': uuidD })
       .send(validPayload);
 
     expect(res2.status).toBe(201);

@@ -41,7 +41,7 @@ describe('Flujo Cruzado: Multi-Inquilino y Auditoría (Fase 3)', () => {
       name: 'Owner',
       email: `owner_${Date.now()}@test.com`,
       password: hashedPassword,
-      role: 'customer',
+      role: 'TENANT_OWNER',
       subscriptionExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // +7 días
     });
     ownerId = owner._id.toString();

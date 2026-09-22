@@ -66,7 +66,7 @@ describe('Subscription Verification Middleware Flow', () => {
       email: 'owner-expired@test.com',
       password: hashedPassword,
       name: 'Expired Owner',
-      role: 'customer',
+      role: 'TENANT_OWNER',
       subscriptionExpiresAt: expiredDate
     });
 
@@ -93,7 +93,7 @@ describe('Subscription Verification Middleware Flow', () => {
       email: 'owner-expired2@test.com',
       password: hashedPassword,
       name: 'Expired Owner 2',
-      role: 'customer',
+      role: 'TENANT_OWNER',
       subscriptionExpiresAt: expiredDate
     });
 
@@ -133,7 +133,7 @@ describe('Subscription Verification Middleware Flow', () => {
       email: 'owner-active@test.com',
       password: hashedPassword,
       name: 'Active Owner',
-      role: 'customer',
+      role: 'TENANT_OWNER',
       subscriptionExpiresAt: activeDate
     });
 

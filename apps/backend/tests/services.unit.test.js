@@ -141,19 +141,19 @@ describe('sale.service — createSaleProcess()', () => {
 
     // El servicio debe retornar el documento de venta
     expect(sale).toBeDefined();
-    expect(sale.total_amount).toBe(500); // 5 * 100
+    expect(sale.total_amount.toString()).toBe('500'); // 5 * 100
     expect(sale.status).toBe('completed');
     expect(sale.customer_id.toString()).toBe(userId.toString());
 
     // Verificar stock descontado en BD (Inventory)
     const updatedInventory = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
-    expect(updatedInventory.quantity).toBe(15); // 20 - 5
+    expect(updatedInventory.quantity.toString()).toBe('15'); // 20 - 5
 
     // Verificar que el detalle se guardó
     const details = await SaleDetail.find({ sale_id: sale._id });
     expect(details).toHaveLength(1);
-    expect(details[0].quantity).toBe(5);
-    expect(details[0].unit_price).toBe(100);
+    expect(details[0].quantity.toString()).toBe('5');
+    expect(details[0].unit_price.toString()).toBe('100');
   });
 
   it('✅ commitTransaction con cantidades fraccionarias (kg)', async () => {
@@ -167,10 +167,10 @@ describe('sale.service — createSaleProcess()', () => {
       'Tarjeta'
     );
 
-    expect(sale.total_amount).toBe(187.5); // 3.75 * 50
+    expect(sale.total_amount.toString()).toBe('187.5'); // 3.75 * 50
 
     const updatedInventory = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
-    expect(updatedInventory.quantity).toBe(6.25); // 10 - 3.75
+    expect(updatedInventory.quantity.toString()).toBe('6.25'); // 10 - 3.75
   });
 
   it('✅ commitTransaction con múltiples items', async () => {
@@ -188,12 +188,12 @@ describe('sale.service — createSaleProcess()', () => {
       'Tarjeta'
     );
 
-    expect(sale.total_amount).toBe(800);
+    expect(sale.total_amount.toString()).toBe('800');
 
     const invA = await Inventory.findOne({ product_id: p1._id, branch_id: branchId });
     const invB = await Inventory.findOne({ product_id: p2._id, branch_id: branchId });
-    expect(invA.quantity).toBe(16);  // 20 - 4
-    expect(invB.quantity).toBe(13);  // 15 - 2
+    expect(invA.quantity.toString()).toBe('16');  // 20 - 4
+    expect(invB.quantity.toString()).toBe('13');  // 15 - 2
   });
 
   it('🔴 abortTransaction: lanza error si stock es insuficiente — BD queda INTACTA', async () => {
@@ -211,7 +211,7 @@ describe('sale.service — createSaleProcess()', () => {
 
     // ROLLBACK VERIFICADO: el stock NO debe haber cambiado
     const invAfter = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
-    expect(invAfter.quantity).toBe(5); // intacto
+    expect(invAfter.quantity.toString()).toBe('5'); // intacto
 
     // ROLLBACK VERIFICADO: ninguna Venta ni Detalle debe haberse guardado
     const salesCount = await Sale.countDocuments();
@@ -255,8 +255,8 @@ describe('sale.service — fetchSales() y fetchSaleById()', () => {
     const sales = await fetchSales(userId);
     expect(sales).toHaveLength(2);
     // Ordenadas desc: la última creada es la primera
-    expect(sales[0].total_amount).toBe(20);
-    expect(sales[1].total_amount).toBe(10);
+    expect(sales[0].total_amount.toString()).toBe('20');
+    expect(sales[1].total_amount.toString()).toBe('10');
   });
 
   it('fetchSaleById retorna null para ID inexistente', async () => {
@@ -301,17 +301,17 @@ describe('purchase.service — createPurchaseProcess()', () => {
     );
 
     expect(purchase).toBeDefined();
-    expect(purchase.total_cost).toBe(500); // 10 * 50
+    expect(purchase.total_cost.toString()).toBe('500'); // 10 * 50
     expect(purchase.supplier).toBe('Proveedor XYZ');
 
     // Stock incrementado en Inventory
     const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
-    expect(branchInv.quantity).toBe(10); // 0 + 10
+    expect(branchInv.quantity.toString()).toBe('10'); // 0 + 10
 
     // Detalle guardado
     const details = await PurchaseDetail.find({ purchase_id: purchase._id });
     expect(details).toHaveLength(1);
-    expect(details[0].quantity).toBe(10);
+    expect(details[0].quantity.toString()).toBe('10');
   });
 
   it('✅ commitTransaction con cantidades fraccionarias (kg)', async () => {
@@ -324,9 +324,9 @@ describe('purchase.service — createPurchaseProcess()', () => {
       [{ product_id: product._id.toString(), quantity: 15.5, unit_cost: 100 }]
     );
 
-    expect(purchase.total_cost).toBe(1550); // 15.5 * 100
+    expect(purchase.total_cost.toString()).toBe('1550'); // 15.5 * 100
     const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
-    expect(branchInv.quantity).toBe(15.5);
+    expect(branchInv.quantity.toString()).toBe('15.5');
   });
 
   it('🔴 abortTransaction: lanza error si product_id no existe — BD queda INTACTA', async () => {
@@ -361,14 +361,14 @@ describe('adjustment.service — createAdjustmentProcess()', () => {
     );
 
     expect(adjustment).toBeDefined();
-    expect(adjustment.previous_quantity).toBe(10);
-    expect(adjustment.new_quantity).toBe(25);
-    expect(adjustment.quantity_change).toBe(15);
+    expect(adjustment.previous_quantity.toString()).toBe('10');
+    expect(adjustment.new_quantity.toString()).toBe('25');
+    expect(adjustment.quantity_change.toString()).toBe('15');
     expect(adjustment.reason).toBe('initial_count');
 
     // Stock actualizado en Inventory
     const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
-    expect(branchInv.quantity).toBe(25);
+    expect(branchInv.quantity.toString()).toBe('25');
   });
 
   it('✅ commitTransaction: registra ajuste negativo (mermas/daños)', async () => {
@@ -378,9 +378,9 @@ describe('adjustment.service — createAdjustmentProcess()', () => {
       userId, userId, branchId, product._id.toString(), 22, 'damaged', 'Rotura de embalaje'
     );
 
-    expect(adjustment.quantity_change).toBe(-8); // 22 - 30
+    expect(adjustment.quantity_change.toString()).toBe('-8'); // 22 - 30
     const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
-    expect(branchInv.quantity).toBe(22);
+    expect(branchInv.quantity.toString()).toBe('22');
   });
 
   it('🔴 abortTransaction: lanza error si new_quantity === stock actual', async () => {
@@ -392,7 +392,7 @@ describe('adjustment.service — createAdjustmentProcess()', () => {
 
     // Stock no cambia, no se registra historial
     const branchInv = await Inventory.findOne({ product_id: product._id, branch_id: branchId });
-    expect(branchInv.quantity).toBe(15);
+    expect(branchInv.quantity.toString()).toBe('15');
     expect(await StockMovement.countDocuments()).toBe(0);
   });
 
@@ -416,8 +416,8 @@ describe('adjustment.service — createAdjustmentProcess()', () => {
 
     expect(adjustments).toHaveLength(2);
     // Orden desc: el más reciente primero
-    expect(adjustments[0].new_quantity).toBe(20);
-    expect(adjustments[1].new_quantity).toBe(10);
+    expect(adjustments[0].new_quantity.toString()).toBe('20');
+    expect(adjustments[1].new_quantity.toString()).toBe('10');
     // Populate funcionando
     expect(adjustments[0].product_id.name).toBe('Agua Pura');
   });

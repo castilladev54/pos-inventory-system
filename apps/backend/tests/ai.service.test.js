@@ -9,6 +9,7 @@ import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import { Purchase } from '../models/Purchase.js';
 import { Category } from '../models/Category.js';
+import { CashShift } from '../models/CashShift.model.ts';
 import { GoogleGenAI } from '@google/genai';
 
 // Mockeamos la librería de Google Gen AI para no hacer peticiones reales ni gastar tokens
@@ -57,6 +58,7 @@ describe('AI Service - getAIAdviceStreamService Integration', () => {
   let userId;
   let productId;
   let branchId; // Dummy ID — el servicio de IA consulta directamente los modelos, no pasa por la ruta HTTP
+  let shiftId;
   
   beforeEach(async () => {
     branchId = new mongoose.Types.ObjectId();
@@ -80,6 +82,14 @@ describe('AI Service - getAIAdviceStreamService Integration', () => {
       user: userId
     });
     productId = product._id.toString();
+
+    const shift = await CashShift.create({
+      branch_id: branchId,
+      user_id: userId,
+      status: 'OPEN',
+      opening_balance: 100
+    });
+    shiftId = shift._id.toString();
   });
 
   it('debe recopilar contexto base correctamente e inyectarlo en el AI prompt', async () => {
@@ -87,6 +97,7 @@ describe('AI Service - getAIAdviceStreamService Integration', () => {
     const sale = await Sale.create({
       customer_id: userId,
       branch_id: branchId,
+      shift_id: shiftId,
       payment_method: 'Efectivo',
       total_amount: 1500,
       customer_name: 'Juan Perez'
@@ -127,6 +138,7 @@ describe('AI Service - getAIAdviceStreamService Integration', () => {
     await Sale.create({
       customer_id: userId,
       branch_id: branchId,
+      shift_id: shiftId,
       payment_method: 'Efectivo',
       total_amount: 500,
       customer_name: 'Pedro',

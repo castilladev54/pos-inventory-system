@@ -157,10 +157,10 @@ describe('CashShift & Sales Integration Test Suite', () => {
       ],
     };
 
+    const fakeShiftId = new mongoose.Types.ObjectId().toString();
     const res = await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': fakeShiftId })
       .send(salePayload);
 
     expect(res.status).toBe(403);
@@ -172,7 +172,6 @@ describe('CashShift & Sales Integration Test Suite', () => {
     const res = await request(app)
       .post('/api/shifts/open')
       .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
       .send({ opening_balance: '1000.00' });
 
     expect(res.status).toBe(201);
@@ -188,7 +187,6 @@ describe('CashShift & Sales Integration Test Suite', () => {
     const firstRes = await request(app)
       .post('/api/shifts/open')
       .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
       .send(openPayload);
 
     expect(firstRes.status).toBe(201);
@@ -197,7 +195,6 @@ describe('CashShift & Sales Integration Test Suite', () => {
     const secondRes = await request(app)
       .post('/api/shifts/open')
       .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
       .send(openPayload);
 
     expect(secondRes.status).toBe(409);
@@ -209,11 +206,11 @@ describe('CashShift & Sales Integration Test Suite', () => {
     productId = await createProductWithStock();
 
     // 1. Abrir turno
-    await request(app)
+    const openRes = await request(app)
       .post('/api/shifts/open')
       .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
       .send({ opening_balance: '500.00' });
+    const activeShiftId = openRes.body.data._id;
 
     // 2. Ejecutar venta intentando inyectar un shift_id arbitrario en el body
     const fakeShiftId = new mongoose.Types.ObjectId().toString();
@@ -232,8 +229,7 @@ describe('CashShift & Sales Integration Test Suite', () => {
 
     const saleRes = await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': activeShiftId })
       .set('x-idempotency-key', crypto.randomUUID())
       .send(salePayload);
 
@@ -258,18 +254,17 @@ describe('CashShift & Sales Integration Test Suite', () => {
     productId = await createProductWithStock('Producto Arqueo', 200, 100);
 
     // 1. Abrir turno con 250.75
-    await request(app)
+    const openRes = await request(app)
       .post('/api/shifts/open')
       .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
       .send({ opening_balance: '250.75' });
+    const shiftId = openRes.body.data._id;
 
     // 2. Venta 1: 2 * 100.25 = 200.50
     const product2 = await createProductWithStock('Producto A', 100.25, 100);
     await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
       .set('x-idempotency-key', crypto.randomUUID())
       .send({
         customer_id: userId,
@@ -281,8 +276,7 @@ describe('CashShift & Sales Integration Test Suite', () => {
     const product3 = await createProductWithStock('Producto B', 49.25, 100);
     await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
       .set('x-idempotency-key', crypto.randomUUID())
       .send({
         customer_id: userId,
@@ -296,7 +290,6 @@ describe('CashShift & Sales Integration Test Suite', () => {
     const closeRes = await request(app)
       .post('/api/shifts/close')
       .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
       .send({ closing_balance: '500.50' });
 
     expect(closeRes.status).toBe(200);
@@ -307,8 +300,7 @@ describe('CashShift & Sales Integration Test Suite', () => {
     // 5. Confirmar que una venta posterior es rechazada
     const postCloseSaleRes = await request(app)
       .post('/api/sales')
-      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
       .set('x-idempotency-key', crypto.randomUUID())
       .send({
         customer_id: userId,
@@ -325,8 +317,7 @@ describe('CashShift & Sales Integration Test Suite', () => {
     // Sin turno → null
     const noShiftRes = await request(app)
       .get('/api/shifts/active')
-      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId);
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
     expect(noShiftRes.status).toBe(200);
     expect(noShiftRes.body.data).toBeNull();
@@ -335,13 +326,11 @@ describe('CashShift & Sales Integration Test Suite', () => {
     await request(app)
       .post('/api/shifts/open')
       .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId)
       .send({ opening_balance: '300.00' });
 
     const activeRes = await request(app)
       .get('/api/shifts/active')
-      .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
-      .set('x-branch-id', branchId);
+      .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
 
     expect(activeRes.status).toBe(200);
     expect(activeRes.body.data).not.toBeNull();

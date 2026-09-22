@@ -9,6 +9,7 @@ import { Product } from '../models/Product.js';
 import { Sale } from '../models/Sale.js';
 import { SaleDetail } from '../models/SaleDetail.js';
 import { Branch } from '../models/Branch.js';
+import { CashShift } from '../models/CashShift.js';
 import { Inventory } from '../models/Inventory.js';
 import bcryptjs from 'bcryptjs';
 import { getAuthHeadersForUser } from './helpers/auth.js';
@@ -62,6 +63,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
   let categoryId;
   let productId;
   let branchId;
+  let shiftId;
 
   beforeAll(async () => {
     const hashedPassword = await bcryptjs.hash('password123', 10);
@@ -86,6 +88,14 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
       is_active: true,
     });
     branchId = branch._id.toString();
+
+    const shift = await CashShift.create({
+      branch_id: branchId,
+      user_id: userId,
+      status: 'OPEN',
+      opening_balance: 100
+    });
+    shiftId = shift._id.toString();
   });
 
   beforeEach(async () => {
@@ -115,7 +125,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
     it('GET /api/sales debe incluir el campo fromCache en la respuesta', async () => {
       const response = await request(app)
         .get('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId });
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('fromCache');
@@ -125,7 +135,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
       // Crear venta primero
       const createRes = await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
         .send({
           customer_id: userId,
           payment_method: 'Efectivo',
@@ -136,7 +146,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
 
       const response = await request(app)
         .get(`/api/sales/${saleId}`)
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId });
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('fromCache');
@@ -150,7 +160,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
     it('el stock debe reducirse exactamente en la cantidad vendida', async () => {
       await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
         .send({
           customer_id: userId,
           payment_method: 'Efectivo',
@@ -166,7 +176,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
       // Primera venta: -5
       await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
         .send({
           customer_id: userId,
           payment_method: 'Efectivo',
@@ -177,7 +187,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
       // Segunda venta: -3 más
       await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
         .send({
           customer_id: userId,
           payment_method: 'Efectivo',
@@ -192,7 +202,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
     it('stock se queda intacto si la venta falla por stock insuficiente', async () => {
       await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
         .send({
           customer_id: userId,
           payment_method: 'Efectivo',
@@ -223,7 +233,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
       // El usuario original crea una venta
       await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
         .send({
           customer_id: userId,
           payment_method: 'Efectivo',
@@ -248,7 +258,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
     it('debe retornar sale con items, product_id populated y precio correcto', async () => {
       const createRes = await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
         .send({
           customer_id: userId,
           payment_method: 'Tarjeta',
@@ -259,10 +269,10 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
 
       const response = await request(app)
         .get(`/api/sales/${saleId}`)
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() });
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId });
 
       expect(response.status).toBe(200);
-      expect(response.body.sale.total_amount).toBe(60); // 4 * 15 = 60
+      expect(response.body.sale.total_amount).toBe('60'); // 4 * 15 = 60
       expect(response.body.sale.status).toBe('completed');
       expect(response.body.sale.payment_method).toBe('Tarjeta');
 
@@ -270,8 +280,8 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
       const items = response.body.sale.items;
       expect(items).toHaveLength(1);
       expect(items[0].product_id.name).toBe('Agua Mineral 1L');
-      expect(items[0].product_id.price).toBe(15);
-      expect(items[0].quantity).toBe(4);
+      expect(items[0].product_id.price.toString()).toBe('15');
+      expect(items[0].quantity.toString()).toBe('4');
     });
 
     it('debe retornar 401 si no está autenticado', async () => {
@@ -301,7 +311,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
 
       const response = await request(app)
         .post('/api/sales')
-        .set({ ...authHeaders, 'x-branch-id': branchId.toString() })
+        .set({ ...authHeaders, 'x-branch-id': branchId.toString(), 'x-shift-id': shiftId })
         .send({
           customer_id: userId,
           payment_method: 'Efectivo',
@@ -313,7 +323,7 @@ describe('Sale Controllers — Extended Tests (Cache + Edge Cases)', () => {
         });
 
       expect(response.status).toBe(201);
-      expect(response.body.sale.total_amount).toBe(61); // 45 + 16
+      expect(response.body.sale.total_amount).toBe('61'); // 45 + 16
 
       const agua    = await Inventory.findOne({ product_id: productId,  branch_id: branchId });
       const galleta = await Inventory.findOne({ product_id: product2Id, branch_id: branchId });
