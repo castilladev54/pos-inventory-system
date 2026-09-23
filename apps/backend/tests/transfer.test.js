@@ -13,7 +13,7 @@ import {
   StockMovementType
 } from '../models/StockMovement.js';
 
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 
 import { getAuthHeadersForUser } from './helpers/auth.js';
 
@@ -32,7 +32,7 @@ describe('POST /api/transfers', () => {
   let authHeaders;
 
   beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create({
+    mongoServer = await MongoMemoryReplSet.create({
       binary: {
         version: '7.0.14'
       }
@@ -128,7 +128,11 @@ describe('POST /api/transfers', () => {
         notes: 'Transferencia de prueba'
       });
 
+    console.log('TRANSFER RESPONSE:', response.status, response.body);
+
     expect(response.status).toBe(200);
+
+    console.log('TRANSFER RESPONSE:', response.status, response.body);
 
     expect(response.body).toEqual({
       success: true,
