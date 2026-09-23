@@ -68,20 +68,20 @@ api.interceptors.request.use(
       config.headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // 1. Contrato explícito: La consulta declaró su naturaleza global
-    if (config.headers['x-global-request'] === 'true' || config.headers['x-global-request']) {
-      return config;
+    // 1. Resolver el contexto de sucursal
+    const isGlobalRequest =
+      config.headers['x-global-request'] === 'true' ||
+      Boolean(config.headers['x-global-request']);
+
+    if (isGlobalRequest) {
+      // Una petición global no puede llevar contexto de sucursal.
+      config.headers.delete('x-branch-id');
+    } else if (activeBranchId && !config.headers['x-branch-id']) {
+      // Respetar siempre un x-branch-id explícitamente proporcionado.
+      config.headers.set('x-branch-id', activeBranchId);
     }
 
-    // 2. Bloqueo relajado: Header opcional
-    if (activeBranchId) {
-      config.headers['x-branch-id'] = activeBranchId;
-    }
-    // No se aborta la petición si falta la sucursal; el backend manejará la ausencia.
-
-    // 3. Inyección local
-    // Header injected above if branchId exists
-
+    // El interceptor continúa hasta el final.
     return config;
   },
   (error) => Promise.reject(error)
