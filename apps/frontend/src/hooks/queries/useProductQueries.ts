@@ -9,6 +9,7 @@ import { useAuthStore } from '../../store/authStore';
 import type {
   Product,
   ProductId,
+  BranchId,
   ApiProductResponse,
   ApiProductListResponse,
 } from '@inventory/shared';
@@ -22,6 +23,11 @@ export const productKeys = {
     [...productKeys.lists(branchId), { page, limit, search }] as const,
   posCatalog: (branchId: string | null) => [...productKeys.all(branchId), 'pos-catalog'] as const,
   barcode: (branchId: string | null, code: string) => [...productKeys.all(branchId), 'barcode', code] as const,
+};
+
+export const transferProductKeys = {
+  all: ['transfer-products'] as const,
+  byBranch: (branchId: BranchId | null) => [...transferProductKeys.all, branchId] as const,
 };
 
 // ─── Tipos de Payload ─────────────────────────────────────────────────────────
@@ -152,5 +158,34 @@ export function useDeleteProduct() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: productKeys.all(activeBranchId) });
     },
+  });
+}
+
+/**
+ * Obtiene el catálogo de productos para una transferencia, explícitamente para
+ * una sucursal origen. NO utiliza el activeBranchId global de la tienda.
+ */
+export function useTransferProductsQuery(sourceBranchId: BranchId | null) {
+  return useQuery<Product[], Error>({
+    queryKey: transferProductKeys.byBranch(sourceBranchId),
+    queryFn: async () => {
+      if (!sourceBranchId) {
+        throw new Error('La sucursal origen es requerida');
+      }
+
+      // Pedimos todo el catálogo para la sucursal origen. 
+      // El backend no filtra por stock > 0, devuelve todo.
+      const res = await API.get('/products', {
+        params: { page: 1, limit: 5000 },
+        headers: {
+          'x-branch-id': sourceBranchId,
+        },
+      });
+      const data = res.data as ApiProductListResponse;
+      return data.products;
+    },
+    enabled: sourceBranchId !== null,
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
   });
 }
