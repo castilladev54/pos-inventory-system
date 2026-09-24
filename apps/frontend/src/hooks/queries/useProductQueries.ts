@@ -108,8 +108,8 @@ export function useProductByBarcodeQuery(barcode: string, enabled: boolean) {
   return useQuery<ApiProductResponse>({
     queryKey: productKeys.barcode(activeBranchId, barcode),
     queryFn: async ({ signal }) => {
-      const res = await API.get(`/products/barcode/${barcode}`, { signal });
-      return res.data as ApiProductResponse;
+      const res = await API.get<ApiProductResponse>(`/products/barcode/${barcode}`, { signal });
+      return res.data;
     },
     enabled: enabled && barcode.length >= 5,
     staleTime: 30_000,
@@ -124,8 +124,8 @@ export function useCreateProduct() {
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<ApiProductResponse, Error, CreateProductPayload>({
     mutationFn: async (payload) => {
-      const res = await API.post('/products', payload);
-      return res.data as ApiProductResponse;
+      const res = await API.post<ApiProductResponse>('/products', payload);
+      return res.data;
     },
     onSuccess: () => {
       // Invalida TODAS las listas de productos (incluye POS catalog)
@@ -139,8 +139,8 @@ export function useUpdateProduct() {
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
   return useMutation<ApiProductResponse, Error, { id: ProductId; data: UpdateProductPayload }>({
     mutationFn: async ({ id, data }) => {
-      const res = await API.put(`/products/${id}`, data);
-      return res.data as ApiProductResponse;
+      const res = await API.put<ApiProductResponse>(`/products/${id}`, data);
+      return res.data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: productKeys.all(activeBranchId) });
@@ -173,16 +173,13 @@ export function useTransferProductsQuery(sourceBranchId: BranchId | null) {
         throw new Error('La sucursal origen es requerida');
       }
 
-      // Pedimos todo el catálogo para la sucursal origen. 
-      // El backend no filtra por stock > 0, devuelve todo.
-      const res = await API.get('/products', {
+      const res = await API.get<ApiProductListResponse>('/products', {
         params: { page: 1, limit: 5000 },
         headers: {
           'x-branch-id': sourceBranchId,
         },
       });
-      const data = res.data as ApiProductListResponse;
-      return data.products;
+      return res.data.products;
     },
     enabled: sourceBranchId !== null,
     staleTime: 5 * 60_000,
