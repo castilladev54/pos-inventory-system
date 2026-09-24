@@ -1,3 +1,4 @@
+import Big from 'big.js';
 import type { BranchId, Product } from '@inventory/shared';
 
 export function getProductStockForBranch(
@@ -14,4 +15,17 @@ export function getProductStockForBranch(
   );
 
   return inventory?.stock ?? '0';
+}
+
+export function getTransferableQuantity(
+  product: Product,
+  branchId: BranchId,
+  inCart: string,
+): string {
+  const stock = getProductStockForBranch(product, branchId);
+  const stockBig = new Big(stock);
+  const inCartBig = new Big(inCart || '0');
+
+  const remaining = stockBig.minus(inCartBig);
+  return remaining.gt(0) ? remaining.toString() : '0';
 }
