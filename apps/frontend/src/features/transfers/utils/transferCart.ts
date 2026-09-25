@@ -1,6 +1,9 @@
 import Big from 'big.js';
 import type { Product, ProductId, UnitType, BranchId } from '@inventory/shared';
 import { getProductStockForBranch } from './transferInventory';
+import { TransferCartError } from './TransferCartError';
+
+export { TransferCartError };
 
 export interface TransferCartItem {
   product_id: ProductId;
@@ -9,20 +12,18 @@ export interface TransferCartItem {
   quantity: string;
 }
 
-export class TransferCartError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TransferCartError';
-  }
-}
-
 export function addItemToCart(
   cart: TransferCartItem[],
   product: Product,
   sourceBranchId: BranchId,
   quantity: string
 ): TransferCartItem[] {
-  const qtyToAdd = new Big(quantity || '0');
+  let qtyToAdd: Big;
+  try {
+    qtyToAdd = new Big(quantity || '0');
+  } catch (error) {
+    throw new TransferCartError('Formato de cantidad inválido');
+  }
   
   if (qtyToAdd.lte(0)) {
     throw new TransferCartError('La cantidad debe ser mayor a 0');
@@ -64,7 +65,12 @@ export function updateCartItemQuantity(
   sourceBranchId: BranchId,
   quantity: string
 ): TransferCartItem[] {
-  const newQty = new Big(quantity || '0');
+  let newQty: Big;
+  try {
+    newQty = new Big(quantity || '0');
+  } catch (error) {
+    throw new TransferCartError('Formato de cantidad inválido');
+  }
   
   if (newQty.lte(0)) {
     throw new TransferCartError('La cantidad debe ser mayor a 0');

@@ -81,6 +81,14 @@ describe('transferCart operations', () => {
       expect(() => addItemToCart(cart, product, sourceBranch, '0')).toThrowError(TransferCartError);
       expect(() => addItemToCart(cart, product, sourceBranch, '-1')).toThrowError(TransferCartError);
     });
+
+    it('rechaza cantidades con formato inválido', () => {
+      const product = createMockProduct(productId1, '10');
+      const cart: TransferCartItem[] = [];
+
+      expect(() => addItemToCart(cart, product, sourceBranch, 'abc')).toThrowError(TransferCartError);
+      expect(() => addItemToCart(cart, product, sourceBranch, '1.2.3')).toThrowError(TransferCartError);
+    });
   });
 
   describe('updateCartItemQuantity', () => {
@@ -105,6 +113,15 @@ describe('transferCart operations', () => {
       const product = createMockProduct(productId1, '10');
       expect(() => {
         updateCartItemQuantity([], product, sourceBranch, '5');
+      }).toThrowError(TransferCartError);
+    });
+
+    it('rechaza cantidades con formato inválido', () => {
+      const product = createMockProduct(productId1, '10');
+      const cart = addItemToCart([], product, sourceBranch, '5');
+
+      expect(() => {
+        updateCartItemQuantity(cart, product, sourceBranch, 'abc');
       }).toThrowError(TransferCartError);
     });
   });

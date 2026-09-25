@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getProductStockForBranch, getTransferableQuantity } from './transferInventory';
+import { TransferCartError } from './TransferCartError';
 import type { Product, BranchId } from '@inventory/shared';
 
 describe('getProductStockForBranch', () => {
@@ -8,7 +9,7 @@ describe('getProductStockForBranch', () => {
   const branchC = 'branch-c' as BranchId;
 
   // Helper para construir productos simulados omitiendo los campos irrelevantes para este test
-  const createMockProduct = (branchInventories: any[] = [], totalStock: string = '0'): Product => {
+  const createMockProduct = (branchInventories: { branch_id: BranchId, stock: string }[] = [], totalStock: string = '0'): Product => {
     return {
       _id: 'mock-product-id',
       name: 'Mock Product',
@@ -59,7 +60,7 @@ describe('getProductStockForBranch', () => {
 describe('getTransferableQuantity', () => {
   const branchA = 'branch-a' as BranchId;
 
-  const createMockProduct = (branchInventories: any[] = [], totalStock: string = '0'): Product => {
+  const createMockProduct = (branchInventories: { branch_id: BranchId, stock: string }[] = [], totalStock: string = '0'): Product => {
     return {
       _id: 'mock-product-id',
       name: 'Mock Product',
@@ -102,5 +103,10 @@ describe('getTransferableQuantity', () => {
   it('stock 0.3, carrito 0.1 -> "0.2"', () => {
     const product = createMockProduct([{ branch_id: branchA, stock: '0.3' }]);
     expect(getTransferableQuantity(product, branchA, '0.1')).toBe('0.2');
+  });
+
+  it('lanza TransferCartError si la cantidad en carrito tiene un formato inválido', () => {
+    const product = createMockProduct([{ branch_id: branchA, stock: '10' }]);
+    expect(() => getTransferableQuantity(product, branchA, 'abc')).toThrowError(TransferCartError);
   });
 });

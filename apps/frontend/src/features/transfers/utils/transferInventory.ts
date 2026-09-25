@@ -1,5 +1,6 @@
 import Big from 'big.js';
 import type { BranchId, Product } from '@inventory/shared';
+import { TransferCartError } from './TransferCartError';
 
 export function getProductStockForBranch(
   product: Product,
@@ -23,8 +24,15 @@ export function getTransferableQuantity(
   inCart: string,
 ): string {
   const stock = getProductStockForBranch(product, branchId);
-  const stockBig = new Big(stock);
-  const inCartBig = new Big(inCart || '0');
+  
+  let stockBig: Big;
+  let inCartBig: Big;
+  try {
+    stockBig = new Big(stock);
+    inCartBig = new Big(inCart || '0');
+  } catch (error) {
+    throw new TransferCartError('Formato de cantidad inválido');
+  }
 
   const remaining = stockBig.minus(inCartBig);
   return remaining.gt(0) ? remaining.toString() : '0';
