@@ -1,261 +1,410 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, Plus, Trash2, Send } from 'lucide-react';
-import Button from '../atoms/Button';
-import { useAuthStore } from '../../store/authStore';
-import { useAllProductsForPOS } from '../../hooks/queries/useProductQueries';
-import { useBranchesQuery } from '../../hooks/queries/useBranchQueries';
-import { useCreateStockTransfer } from '../../hooks/queries/useStockTransferQueries';
+import { useMemo, useState } from 'react';
+import { ArrowRight, Package, Trash2, X, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-interface Props {
+import type { BranchId, Product, CreateStockTransferDTO } from '@inventory/shared';
+
+import Modal from '../molecules/Modal';
+import ProductSearchBar from '../molecules/ProductSearchBar';
+
+import { useBranchesQuery } from '../../hooks/queries/useBranchQueries';
+import { useTransferProductsQuery } from '../../hooks/queries/useProductQueries';
+import { useCreateStockTransfer } from '../../hooks/queries/useStockTransferQueries';
+import { useTransferCart } from '../../features/transfers/hooks/useTransferCart';
+import { getProductStockForBranch } from '../../features/transfers/utils/transferInventory';
+
+interface CreateStockTransferModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const CreateStockTransferModal = ({ isOpen, onClose }: Props) => {
-  const { activeBranchId } = useAuthStore();
-  const { data: branches = [] } = useBranchesQuery();
-  const { data: products = [] } = useAllProductsForPOS();
-  const { mutate: createTransfer, isPending } = useCreateStockTransfer();
-
-  const [destinationBranch, setDestinationBranch] = useState<string>('');
+export default function CreateStockTransferModal({
+  isOpen,
+  onClose,
+}: CreateStockTransferModalProps) {
+  const [sourceBranchId, setSourceBranchId] = useState<BranchId | null>(null);
+  const [destinationBranchId, setDestinationBranchId] = useState<BranchId | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [notes, setNotes] = useState('');
-  const [selectedItems, setSelectedItems] = useState<Array<{ product_id: string; name: string; maxStock: number; quantity: number }>>([]);
+  
+  // Estado para la fila intermedia (UX)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [quantityInput, setQuantityInput] = useState('');
 
-  // Filtrar sucursales destino (no puede ser la misma sucursal activa)
-  const availableBranches = useMemo(() => {
-    return branches.filter(b => b._id !== activeBranchId && b.is_active);
-  }, [branches, activeBranchId]);
+  const { data: branches = [], isLoading: branchesLoading } = useBranchesQuery();
 
-  // Filtrar productos disponibles en la sucursal origen
+  const {
+    data: products = [],
+    isLoading: productsLoading,
+  } = useTransferProductsQuery(sourceBranchId);
+
+  const createTransfer = useCreateStockTransfer();
+
+  const {
+    cart,
+    addItem,
+    updateQuantity,
+    removeItem,
+    clear,
+  } = useTransferCart(sourceBranchId);
+
   const availableProducts = useMemo(() => {
-    if (!searchTerm.trim()) return [];
-    const term = searchTerm.toLowerCase();
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return products;
+    }
+
+    return products.filter((product) => {
+      return (
+        product.name.toLowerCase().includes(normalizedSearch) ||
+        product.barcode?.toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [products, searchTerm]);
+
+  const destinationBranches = useMemo(
+    () => branches.filter((branch) => branch._id !== sourceBranchId),
+    [branches, sourceBranchId],
+  );
+
+  const handleSourceBranchChange = (branchId: BranchId) => {
+    setSourceBranchId(branchId);
     
-    return products.filter((p: any) => {
-      if (!p.name.toLowerCase().includes(term) && !p.barcode?.toLowerCase().includes(term)) return false;
-      
-      // Asegurarse de que hay stock en la sucursal actual
-      const branchInv = p.branchInventories?.find((b: any) => typeof b.branch_id === 'string' ? b.branch_id === activeBranchId : b.branch_id._id === activeBranchId);
-      if (!branchInv || branchInv.stock <= 0) return false;
-      
-      // Filtrar si ya está en la lista seleccionada
-      if (selectedItems.some(item => item.product_id === p._id)) return false;
-      
-      return true;
-    }).slice(0, 5); // Mostrar solo top 5 sugerencias
-  }, [products, searchTerm, activeBranchId, selectedItems]);
+    if (destinationBranchId === branchId) {
+      setDestinationBranchId(null);
+    }
 
-  if (!isOpen) return null;
+    // Al cambiar de origen limpiamos todo el flujo
+    setSelectedProduct(null);
+    setQuantityInput('');
+    setSearchTerm('');
+    // El carrito ya se limpia automáticamente por el useEffect interno de useTransferCart
+  };
 
-  const handleAddItem = (p: any) => {
-    const branchInv = p.branchInventories?.find((b: any) => typeof b.branch_id === 'string' ? b.branch_id === activeBranchId : b.branch_id._id === activeBranchId);
-    if (!branchInv) return;
+  const handleClose = () => {
+    clear();
+    setSearchTerm('');
+    setSelectedProduct(null);
+    setQuantityInput('');
+    setSourceBranchId(null);
+    setDestinationBranchId(null);
+    onClose();
+  };
 
-    setSelectedItems(prev => [
-      ...prev,
-      { product_id: p._id, name: p.name, maxStock: branchInv.stock, quantity: 1 }
-    ]);
+  const handleSelectProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setQuantityInput('1');
     setSearchTerm('');
   };
 
-  const handleRemoveItem = (productId: string) => {
-    setSelectedItems(prev => prev.filter(i => i.product_id !== productId));
-  };
-
-  const handleQtyChange = (productId: string, qty: number) => {
-    setSelectedItems(prev => prev.map(item => {
-      if (item.product_id === productId) {
-        return { ...item, quantity: Math.min(Math.max(1, qty), item.maxStock) };
-      }
-      return item;
-    }));
-  };
-
-  const handleSubmit = () => {
-    if (!destinationBranch) {
-      toast.error('Selecciona una sucursal destino');
-      return;
+  const handleAddToCart = () => {
+    if (!selectedProduct || !sourceBranchId) return;
+    
+    try {
+      addItem(selectedProduct, quantityInput);
+      setSelectedProduct(null);
+      setQuantityInput('');
+    } catch (error: any) {
+      toast.error(error.message || 'Error al agregar cantidad');
     }
-    if (selectedItems.length === 0) {
-      toast.error('Agrega al menos un producto a la transferencia');
+  };
+
+  const handleTransfer = async () => {
+    if (!sourceBranchId || !destinationBranchId || cart.length === 0) {
       return;
     }
 
-    createTransfer({
-      destination_branch_id: destinationBranch as any,
-      items: selectedItems.map(i => ({ product_id: i.product_id, quantity: i.quantity })),
-      notes
-    }, {
-      onSuccess: () => {
-        toast.success('Transferencia creada exitosamente');
-        onClose();
-        // Reset form
-        setDestinationBranch('');
-        setSelectedItems([]);
-        setNotes('');
-      },
-      onError: (err: any) => {
-        toast.error(err?.response?.data?.message || 'Error al crear la transferencia');
-      }
-    });
+    const payload: CreateStockTransferDTO = {
+      sourceBranchId,
+      destinationBranchId,
+      items: cart.map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+      })),
+    };
+
+    try {
+      await createTransfer.mutateAsync(payload);
+      toast.success('Transferencia creada exitosamente');
+      handleClose();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error.message || 'Error al procesar transferencia');
+    }
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-      >
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          className="bg-[#0f0f13] border border-white/10 rounded-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]"
-        >
-          <div className="p-4 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-orange-500/10 to-transparent">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Send className="text-orange-500" />
-              Nueva Transferencia de Stock
-            </h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-white transition">
-              <X size={24} />
-            </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="Crear transferencia"
+      icon={<Package className="text-orange-500" size={22} />}
+      className="max-w-4xl max-h-[90vh] overflow-y-auto"
+    >
+      <div className="space-y-5">
+        {/* Sucursales */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-end">
+          <div>
+            <label
+              htmlFor="transfer-source-branch"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
+              Sucursal origen
+            </label>
+
+            <select
+              id="transfer-source-branch"
+              value={sourceBranchId ?? ''}
+              onChange={(event) =>
+                handleSourceBranchChange(event.target.value as BranchId)
+              }
+              disabled={branchesLoading}
+              className="w-full h-11 rounded-xl bg-black/40 border border-white/10 px-3 text-white focus:outline-none focus:border-orange-500"
+            >
+              <option value="">
+                {branchesLoading
+                  ? 'Cargando sucursales...'
+                  : 'Seleccionar origen'}
+              </option>
+
+              {branches.map((branch) => (
+                <option key={branch._id} value={branch._id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-6">
-            {/* Destino */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Sucursal Destino</label>
-              <select
-                value={destinationBranch}
-                onChange={(e) => setDestinationBranch(e.target.value)}
-                className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-orange-500 transition-colors"
-              >
-                <option value="">-- Seleccionar Destino --</option>
-                {availableBranches.map(b => (
-                  <option key={b._id} value={b._id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
+          <ArrowRight
+            className="hidden md:block text-orange-500 mb-3"
+            size={22}
+          />
 
-            {/* Buscador de Productos */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Agregar Productos</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre o código de barras..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-[#1a1a24] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white outline-none focus:border-orange-500 transition-colors"
+          <div>
+            <label
+              htmlFor="transfer-destination-branch"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
+              Sucursal destino
+            </label>
+
+            <select
+              id="transfer-destination-branch"
+              value={destinationBranchId ?? ''}
+              onChange={(event) =>
+                setDestinationBranchId(
+                  event.target.value as BranchId,
+                )
+              }
+              disabled={!sourceBranchId || branchesLoading}
+              className="w-full h-11 rounded-xl bg-black/40 border border-white/10 px-3 text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+            >
+              <option value="">
+                Seleccionar destino
+              </option>
+
+              {destinationBranches.map((branch) => (
+                <option key={branch._id} value={branch._id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Productos */}
+        {sourceBranchId && (
+          <div className="space-y-3">
+            {/* Si NO hay producto seleccionado, mostramos la búsqueda */}
+            {!selectedProduct && (
+              <>
+                <ProductSearchBar
+                  searchTerm={searchTerm}
+                  onSearch={setSearchTerm}
+                  placeholder="Buscar producto para transferir..."
                 />
-                
-                {searchTerm && availableProducts.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1a24] border border-white/10 rounded-xl shadow-xl overflow-hidden z-10">
-                    {availableProducts.map((p: any) => {
-                      const branchInv = p.branchInventories?.find((b: any) => typeof b.branch_id === 'string' ? b.branch_id === activeBranchId : b.branch_id._id === activeBranchId);
+
+                {productsLoading && (
+                  <p className="text-sm text-gray-400">
+                    Cargando productos...
+                  </p>
+                )}
+
+                {!productsLoading && searchTerm.trim() && availableProducts.length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-6">
+                    No se encontraron productos.
+                  </p>
+                )}
+
+                {!productsLoading && searchTerm.trim() && availableProducts.length > 0 && (
+                  <div className="grid gap-2 max-h-64 overflow-y-auto">
+                    {availableProducts.slice(0, 10).map((product) => {
+                      const stock = getProductStockForBranch(product, sourceBranchId);
                       return (
                         <button
-                          key={p._id}
-                          onClick={() => handleAddItem(p)}
-                          className="w-full text-left px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-0 flex justify-between items-center transition"
+                          key={product._id}
+                          type="button"
+                          onClick={() => handleSelectProduct(product)}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left hover:bg-white/10 transition"
                         >
                           <div>
-                            <p className="text-white font-medium text-sm">{p.name}</p>
-                            {p.barcode && <p className="text-xs text-gray-500">{p.barcode}</p>}
+                            <p className="text-white font-medium">
+                              {product.name}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {product.unit_type} | Max: {stock}
+                            </p>
                           </div>
-                          <span className="text-xs text-orange-400 bg-orange-500/10 px-2 py-1 rounded-md">
-                            Stock Disponible: {branchInv?.stock}
+                          <span className="text-sm text-orange-400">
+                            Seleccionar
                           </span>
                         </button>
                       );
                     })}
                   </div>
                 )}
-              </div>
-            </div>
+              </>
+            )}
 
-            {/* Lista de Seleccionados */}
-            <div className="bg-[#1a1a24] border border-white/10 rounded-xl overflow-hidden">
-              <div className="bg-white/5 px-4 py-2 border-b border-white/10 flex items-center justify-between">
-                <h3 className="text-sm font-medium text-gray-300">Productos a Transferir</h3>
-                <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full font-bold">{selectedItems.length}</span>
-              </div>
-              
-              {selectedItems.length === 0 ? (
-                <div className="p-8 text-center text-gray-500 text-sm">
-                  No hay productos agregados a la transferencia.
+            {/* Fila intermedia de ingreso de cantidad */}
+            {selectedProduct && (
+              <div className="rounded-xl border border-orange-500/50 bg-orange-500/10 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-white font-medium">{selectedProduct.name}</h3>
+                    <p className="text-xs text-orange-300/80">
+                      Stock disponible: {getProductStockForBranch(selectedProduct, sourceBranchId)} {selectedProduct.unit_type}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProduct(null)}
+                    className="text-gray-400 hover:text-white transition"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
-              ) : (
-                <ul className="divide-y divide-white/5 max-h-60 overflow-y-auto">
-                  {selectedItems.map((item, idx) => (
-                    <li key={item.product_id} className="p-3 flex items-center justify-between hover:bg-white/[0.02]">
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-medium">{item.name}</p>
-                        <p className="text-xs text-gray-500">Max: {item.maxStock}</p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => handleQtyChange(item.product_id, item.quantity - 1)}
-                            className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 text-white flex items-center justify-center hover:bg-white/10"
-                          >-</button>
-                          <input
-                            type="number"
-                            min="1"
-                            max={item.maxStock}
-                            value={item.quantity || ''}
-                            onChange={(e) => handleQtyChange(item.product_id, parseInt(e.target.value) || 1)}
-                            className="w-14 bg-transparent border-b border-white/20 text-center text-white outline-none focus:border-orange-500"
-                          />
-                          <button 
-                            onClick={() => handleQtyChange(item.product_id, item.quantity + 1)}
-                            className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 text-white flex items-center justify-center hover:bg-white/10"
-                          >+</button>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveItem(item.product_id)}
-                          className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={quantityInput}
+                    onChange={(e) => setQuantityInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddToCart();
+                    }}
+                    placeholder="Cantidad"
+                    autoFocus
+                    className="flex-1 h-11 rounded-xl bg-black/40 border border-white/10 px-3 text-white focus:outline-none focus:border-orange-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    className="h-11 px-5 rounded-xl bg-orange-500 text-white font-medium hover:bg-orange-600 flex items-center gap-2 transition"
+                  >
+                    <Plus size={18} />
+                    Agregar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Carrito */}
+        {cart.length > 0 && (
+          <div className="rounded-xl border border-white/10 overflow-hidden">
+            <div className="px-4 py-3 bg-white/5 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">
+                Productos a transferir
+              </h3>
+
+              <button
+                type="button"
+                onClick={clear}
+                className="text-xs text-red-400 hover:text-red-300"
+              >
+                Limpiar
+              </button>
             </div>
 
-            {/* Notas */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Notas (Opcional)</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Motivo de la transferencia, transportista, etc."
-                className="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-orange-500 resize-none h-20"
-              />
+            <div className="divide-y divide-white/10 max-h-60 overflow-y-auto">
+              {cart.map((item) => {
+                const product = products.find((p) => p._id === item.product_id);
+                const stock = product && sourceBranchId ? getProductStockForBranch(product, sourceBranchId) : '0';
+                
+                return (
+                  <div
+                    key={item.product_id}
+                    className="flex items-center gap-3 px-4 py-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white truncate">
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {item.unit_type} | Max: {stock}
+                      </p>
+                    </div>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={item.quantity}
+                      onChange={(event) => {
+                        if (product) {
+                          try {
+                            updateQuantity(product, event.target.value);
+                          } catch (error: any) {
+                            toast.error(error.message);
+                          }
+                        }
+                      }}
+                      className="w-24 h-9 rounded-lg bg-black/40 border border-white/10 px-2 text-white text-right focus:outline-none focus:border-orange-500"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.product_id)}
+                      aria-label={`Eliminar ${item.name}`}
+                      className="text-gray-400 hover:text-red-400 p-1"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
+        )}
 
-          <div className="p-4 border-t border-white/10 flex justify-end gap-3 bg-white/[0.02]">
-            <Button variant="ghost" onClick={onClose} disabled={isPending}>
-              Cancelar
-            </Button>
-            <Button variant="primary" onClick={handleSubmit} disabled={isPending || selectedItems.length === 0 || !destinationBranch}>
-              {isPending ? 'Procesando...' : 'Crear Transferencia'}
-            </Button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        {/* Acciones */}
+        <div className="flex justify-end gap-3 pt-2 border-t border-white/10">
+          <button
+            type="button"
+            onClick={handleClose}
+            className="h-11 px-5 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5 transition"
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="button"
+            disabled={
+              createTransfer.isPending ||
+              !sourceBranchId ||
+              !destinationBranchId ||
+              sourceBranchId === destinationBranchId ||
+              cart.length === 0
+            }
+            onClick={() => void handleTransfer()}
+            className="h-11 px-5 rounded-xl bg-orange-500 text-white font-medium hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            {createTransfer.isPending ? 'Transfiriendo...' : 'Transferir'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
-};
-
-export default CreateStockTransferModal;
+}

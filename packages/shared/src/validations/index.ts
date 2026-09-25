@@ -15,6 +15,8 @@ import {
   PAYMENT_METHODS,
   ADJUSTMENT_REASONS_BACKEND,
   STOCK_CORRECTION_REASONS,
+  BranchId,
+  ProductId,
 } from '../types/index.js';
 import { zNominalId } from './common.js';
 
@@ -197,7 +199,17 @@ export const createStockTransferBodySchema = z
     path: ['destinationBranchId'],
   });
 
-export type CreateStockTransferDTO = z.infer<typeof createStockTransferBodySchema>;
+export interface CreateStockTransferItemDTO {
+  product_id: ProductId;
+  quantity: string;
+}
+
+export interface CreateStockTransferDTO {
+  sourceBranchId: BranchId;
+  destinationBranchId: BranchId;
+  items: CreateStockTransferItemDTO[];
+  notes?: string;
+}
 
 // ─── TASAS DE CAMBIO ────────────────────────────────────────────────────────
 

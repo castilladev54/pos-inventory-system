@@ -72,18 +72,25 @@ const StockTransferManager = () => {
       )
     },
     {
-      key: activeTab === 'incoming' ? 'source_branch_id' : 'destination_branch_id',
+      key: 'source_branch_id',
       label: activeTab === 'incoming' ? 'Origen' : 'Destino',
-      render: (val) => (
-        <span className="font-medium text-white">
-          {getBranchName(val as any)}
-        </span>
-      )
+      render: (_val, row) => {
+        const branchId =
+          activeTab === 'incoming'
+            ? row.source_branch_id
+            : row.destination_branch_id;
+
+        return (
+          <span className="font-medium text-white">
+            {getBranchName(branchId)}
+          </span>
+        );
+      }
     },
     {
       key: 'items',
       label: 'Artículos',
-      render: (val: any) => (
+      render: (val) => (
         <span className="text-orange-400 bg-orange-500/10 px-2 py-1 rounded text-xs font-bold border border-orange-500/20">
           {val?.length || 0} ítems
         </span>
@@ -103,8 +110,9 @@ const StockTransferManager = () => {
       }
     },
     {
-      key: 'actions',
+      key: '__display_actions',
       label: 'Acciones',
+      display: true,
       render: (_, row) => {
         if (row.status !== 'PENDING') return <span className="text-gray-600 text-xs">-</span>;
 

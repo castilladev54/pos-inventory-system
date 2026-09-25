@@ -11,9 +11,20 @@ type DataTableColumnForKey<
   headerClassName?: string;
 };
 
-export type DataTableColumn<T> = {
-  [K in keyof T]: DataTableColumnForKey<T, K>;
-}[keyof T];
+export type DataTableDisplayColumn<T> = {
+  key: `__display_${string}`;
+  label: string;
+  display: true;
+  render: (value: undefined, row: T) => ReactNode;
+  className?: string;
+  headerClassName?: string;
+};
+
+export type DataTableColumn<T> =
+  | {
+      [K in keyof T]: DataTableColumnForKey<T, K>;
+    }[keyof T]
+  | DataTableDisplayColumn<T>;
 
 export const createDataTableColumn =
   <T>() =>

@@ -13,6 +13,7 @@ import type {
   ApiProductResponse,
   ApiProductListResponse,
 } from '@inventory/shared';
+import type { CreateStockTransferDTO } from '@inventory/shared';
 
 // ─── Query Keys ──────────────────────────────────────────────────────────────
 
@@ -184,5 +185,21 @@ export function useTransferProductsQuery(sourceBranchId: BranchId | null) {
     enabled: sourceBranchId !== null,
     staleTime: 5 * 60_000,
     gcTime: 10 * 60_000,
+  });
+}
+
+export function useCreateStockTransfer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CreateStockTransferDTO) => {
+      const response = await API.post('/transfers', payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: transferProductKeys.all,
+      });
+    },
   });
 }

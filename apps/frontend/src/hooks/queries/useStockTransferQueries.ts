@@ -5,8 +5,10 @@ import {
 } from '@tanstack/react-query';
 import { api } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
-import type { IStockTransfer } from '@inventory/shared';
+import type { IStockTransfer, CreateStockTransferDTO } from '@inventory/shared';
 import type { BranchId, StockTransferId } from '@inventory/shared';
+import { productKeys } from './useProductQueries';
+import { transferProductKeys } from './useProductQueries';
 
 export const stockTransferKeys = {
   all: ['stock-transfers'] as const,
@@ -41,13 +43,42 @@ export function useStockTransfersQuery(branchId: BranchId | null) {
 /** Crea una nueva transferencia de stock */
 export function useCreateStockTransfer() {
   const qc = useQueryClient();
-  return useMutation<IStockTransfer, Error, CreateStockTransferPayload>({
+
+  return useMutation<
+    any, // TODO: ApiStockTransferResponse
+    Error,
+    CreateStockTransferDTO
+  >({
     mutationFn: async (payload) => {
-      const res = await api.post('/stock-transfers', payload);
-      return res.data.transfer ?? res.data.data ?? res.data;
+      const res = await api.post('/transfers', payload);
+      return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: stockTransferKeys.all });
+    onSuccess: async (_data, payload) => {
+      await Promise.all([
+        // Catálogo de transferencias
+        qc.invalidateQueries({
+          queryKey: transferProductKeys.byBranch(payload.sourceBranchId),
+        }),
+        qc.invalidateQueries({
+          queryKey: transferProductKeys.byBranch(payload.destinationBranchId),
+        }),
+
+        // Productos / stock
+        qc.invalidateQueries({
+          queryKey: productKeys.all(payload.sourceBranchId),
+        }),
+        qc.invalidateQueries({
+          queryKey: productKeys.all(payload.destinationBranchId),
+        }),
+
+        // Historial de transferencias
+        qc.invalidateQueries({
+          queryKey: stockTransferKeys.list(payload.sourceBranchId),
+        }),
+        qc.invalidateQueries({
+          queryKey: stockTransferKeys.list(payload.destinationBranchId),
+        }),
+      ]);
     },
   });
 }

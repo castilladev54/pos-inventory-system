@@ -5,9 +5,15 @@ import Button from '../atoms/Button';
 import Spinner from '../atoms/Spinner';
 import EmptyState from '../molecules/EmptyState';
 import Pagination from '../molecules/Pagination';
-import { DataTableColumn } from './DataTable.types';
+import { DataTableColumn, DataTableDisplayColumn } from './DataTable.types';
 
 export type { DataTableColumn };
+
+const isDisplayColumn = <T,>(
+  column: DataTableColumn<T>,
+): column is DataTableDisplayColumn<T> => {
+  return 'display' in column && column.display === true;
+};
 
 interface DataTableProps<T> {
   columns: DataTableColumn<T>[];
@@ -102,9 +108,11 @@ const DataTable = <T,>({
                           key={col.key as string}
                           className={`px-4 py-3 sm:px-6 sm:py-4 text-gray-300 text-sm ${col.className ?? ''}`}
                         >
-                          {col.render
-                            ? col.render(row[col.key], row)
-                            : (row[col.key] as ReactNode)}
+                          {isDisplayColumn(col)
+                            ? col.render(undefined, row)
+                            : col.render
+                              ? col.render(row[col.key], row)
+                              : (row[col.key] as ReactNode)}
                         </td>
                       ))}
 
